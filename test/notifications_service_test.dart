@@ -110,6 +110,52 @@ void main() {
     },
   );
 
+  test(
+    'marks all notifications as read and returns the unread count',
+    () async {
+      final service = NotificationsService(
+        client: MockClient((request) async {
+          expect(request.method, 'PUT');
+          expect(
+            request.url.path,
+            endsWith('/api/v1/me/notifications/read-all'),
+          );
+          expect(request.headers['accept'], 'application/json');
+          expect(request.headers['authorization'], 'Bearer read-all-token');
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'message': 'All notifications marked as read.',
+              'data': {'unread_count': 0},
+            }),
+            200,
+          );
+        }),
+      );
+
+      expect(await service.markAllAsRead(token: 'read-all-token'), 0);
+    },
+  );
+
+  test('mark all as read surfaces unauthorized responses', () async {
+    final service = NotificationsService(
+      client: MockClient(
+        (_) async => http.Response('{"message":"Unauthenticated."}', 401),
+      ),
+    );
+
+    await expectLater(
+      service.markAllAsRead(token: 'expired-token'),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          401,
+        ),
+      ),
+    );
+  });
+
   test('returns an authentication error for unauthorized responses', () async {
     final service = NotificationsService(
       client: MockClient(

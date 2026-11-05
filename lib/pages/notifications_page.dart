@@ -24,6 +24,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   bool _hasStarted = false;
   bool _isLoading = true;
   bool _isLoadingMore = false;
+  bool _isMarkingAllRead = false;
   String? _errorMessage;
   String? _paginationError;
   int _unreadCount = 0;
@@ -146,11 +147,82 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
   }
 
+  Future<void> _markAllAsRead() async {
+    if (_isMarkingAllRead || _unreadCount == 0) return;
+    setState(() => _isMarkingAllRead = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final token = context.read<SessionProvider>().token;
+      if (token == null) {
+        throw const ApiException('You are not signed in.');
+      }
+      final unreadCount = await _service.markAllAsRead(token: token);
+      if (!mounted) return;
+      final now = DateTime.now();
+      setState(() {
+        _unreadCount = unreadCount;
+        for (var i = 0; i < _notifications.length; i++) {
+          final item = _notifications[i];
+          if (item.isUnread) {
+            _notifications[i] = AppNotification(
+              id: item.id,
+              type: item.type,
+              title: item.title,
+              message: item.message,
+              readAt: now,
+              createdAt: item.createdAt,
+            );
+          }
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            error is ApiException
+                ? error.message
+                : 'Could not mark notifications as read.',
+          ),
+        ),
+      );
+      if (error is ApiException && error.statusCode == 401) {
+        try {
+          await context.read<SessionProvider>().signOut();
+          if (mounted) context.go('/login');
+        } catch (_) {
+          // The snackbar already explains the expired session.
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isMarkingAllRead = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
+        actions: [
+          if (_unreadCount > 0)
+            _isMarkingAllRead
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : IconButton(
+                    tooltip: 'Mark all as read',
+                    onPressed: _markAllAsRead,
+                    icon: const Icon(Icons.done_all_rounded),
+                  ),
+        ],
         leading: IconButton(
           tooltip: 'Back',
           onPressed: () => context.pop(),

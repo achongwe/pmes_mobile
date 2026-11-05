@@ -80,4 +80,51 @@ class NotificationsService {
       statusCode: response.statusCode,
     );
   }
+
+  /// Marks every notification as read and returns the new unread count.
+  Future<int> markAllAsRead({required String token}) async {
+    final uri = Uri.parse(ApiConstants.markAllNotificationsRead);
+    final headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    late final http.Response response;
+    try {
+      response =
+          await (client?.put(uri, headers: headers) ??
+                  http.put(uri, headers: headers))
+              .timeout(_timeout);
+    } on TimeoutException {
+      throw const ApiException(
+        'The server took too long to respond. Please try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Unable to reach the server. Check your connection.',
+      );
+    }
+
+    var body = <String, dynamic>{};
+    try {
+      final decoded = response.body.isEmpty ? {} : jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) body = decoded;
+    } on FormatException {
+      // Fall through to the status-code based handling below.
+    }
+
+    if (response.statusCode == 200 && body['success'] == true) {
+      final data = body['data'];
+      final count = data is Map<String, dynamic> ? data['unread_count'] : null;
+      return count is num && count >= 0 ? count.toInt() : 0;
+    }
+
+    throw ApiException(
+      response.statusCode == 401
+          ? 'Your session has expired. Please sign in again.'
+          : body['message'] as String? ??
+                'Failed to mark notifications as read.',
+      statusCode: response.statusCode,
+    );
+  }
 }
