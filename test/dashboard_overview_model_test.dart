@@ -65,4 +65,32 @@ void main() {
     expect(project.details.summary.requiredStaff, 5);
     expect(project.details.summary.achievedKpiCount, '2');
   });
+
+  test('missing or null nested objects fall back to empty values', () {
+    final project = AssignedProject.fromJson({
+      'id': 1,
+      'title': 'Bare project',
+      'status': null,
+      'stats': null,
+      'location': null,
+      'details': {'summary': null},
+    });
+    expect(project.id, '1');
+    expect(project.details.description, '');
+    expect(project.details.summary.totalExpenses, 0);
+    expect(project.location.name, '');
+
+    final noDetails = AssignedProject.fromJson({'id': 2});
+    expect(noDetails.details.raw, isEmpty);
+
+    final response = DashboardOverviewResponse.fromJson({
+      'data': {
+        'summary': null,
+        'projects': [
+          {'id': 3},
+        ],
+      },
+    });
+    expect(response.data.projects, hasLength(1));
+  });
 }

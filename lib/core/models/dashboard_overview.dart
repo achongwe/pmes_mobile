@@ -1,3 +1,9 @@
+import '../utils/detail_records.dart';
+
+/// Returns [value] as a map, or an empty map when it is null or not an object.
+Map<String, dynamic> _asMap(Object? value) =>
+    value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+
 /// Response envelope for GET /dashboard/overview.
 class DashboardOverviewResponse {
   final DashboardOverviewData data;
@@ -7,7 +13,7 @@ class DashboardOverviewResponse {
 
   factory DashboardOverviewResponse.fromJson(Map<String, dynamic> json) {
     return DashboardOverviewResponse(
-      data: DashboardOverviewData.fromJson(json['data'] as Map<String, dynamic>),
+      data: DashboardOverviewData.fromJson(_asMap(json['data'])),
       success: json['success'] as bool? ?? false,
     );
   }
@@ -21,9 +27,9 @@ class DashboardOverviewData {
 
   factory DashboardOverviewData.fromJson(Map<String, dynamic> json) {
     return DashboardOverviewData(
-      summary: DashboardSummary.fromJson(json['summary'] as Map<String, dynamic>),
+      summary: DashboardSummary.fromJson(_asMap(json['summary'])),
       projects: (json['projects'] as List<dynamic>? ?? [])
-          .map((e) => AssignedProject.fromJson(e as Map<String, dynamic>))
+          .map((e) => AssignedProject.fromJson(_asMap(e)))
           .toList(),
     );
   }
@@ -43,13 +49,13 @@ class DashboardSummary {
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     return DashboardSummary(
       assignedProjects: AssignedProjectsSummary.fromJson(
-        json['assigned_projects'] as Map<String, dynamic>,
+        _asMap(json['assigned_projects']),
       ),
       fiscalAllocation: FiscalAllocationSummary.fromJson(
-        json['fiscal_allocation'] as Map<String, dynamic>,
+        _asMap(json['fiscal_allocation']),
       ),
       kpiOverview: KpiOverviewSummary.fromJson(
-        json['kpi_overview'] as Map<String, dynamic>,
+        _asMap(json['kpi_overview']),
       ),
     );
   }
@@ -159,11 +165,11 @@ class AssignedProject {
       title: json['title'] as String? ?? '',
       section: json['section'] as String?,
       activity: json['activity'] as String? ?? '',
-      status: ProjectStatus.fromJson(json['status'] as Map<String, dynamic>),
+      status: ProjectStatus.fromJson(_asMap(json['status'])),
       milestoneCompletion: json['milestone_completion'] as num? ?? 0,
-      stats: ProjectStats.fromJson(json['stats'] as Map<String, dynamic>),
-      location: ProjectLocation.fromJson(json['location'] as Map<String, dynamic>),
-      details: ProjectDetails.fromJson(json['details'] as Map<String, dynamic>),
+      stats: ProjectStats.fromJson(_asMap(json['stats'])),
+      location: ProjectLocation.fromJson(_asMap(json['location'])),
+      details: ProjectDetails.fromJson(_asMap(json['details'])),
     );
   }
 }
@@ -188,6 +194,9 @@ class ProjectDetails {
   final String milestones;
   final ProjectDetailsSummary summary;
 
+  /// Untouched `details` payload; nested fields may be JSON strings or lists.
+  final Map<String, dynamic> raw;
+
   const ProjectDetails({
     required this.description,
     required this.type,
@@ -207,20 +216,22 @@ class ProjectDetails {
     required this.documents,
     required this.milestones,
     required this.summary,
+    this.raw = const {},
   });
 
   factory ProjectDetails.fromJson(Map<String, dynamic> json) {
     return ProjectDetails(
+      raw: json,
       description: json['description']?.toString() ?? '',
-      type: json['type']?.toString() ?? '',
+      type: displayText(json['type'], fallback: ''),
       startDate: json['start_date']?.toString() ?? '',
       endDate: json['end_date']?.toString() ?? '',
       duration: json['duration']?.toString() ?? '',
-      department: json['department']?.toString() ?? '',
-      projectCategory: json['project_category']?.toString() ?? '',
-      districts: json['districts']?.toString() ?? '',
-      funders: json['funders']?.toString() ?? '',
-      budgets: json['budgets']?.toString() ?? '',
+      department: displayText(json['department'], fallback: ''),
+      projectCategory: displayText(json['project_category'], fallback: ''),
+      districts: displayText(json['districts'], fallback: ''),
+      funders: displayText(json['funders'], fallback: ''),
+      budgets: displayText(json['budgets'], fallback: ''),
       objectives: json['objectives']?.toString() ?? '',
       staffingRequirements: json['staffing_requirements']?.toString() ?? '',
       employees: json['employees']?.toString() ?? '',
@@ -229,7 +240,7 @@ class ProjectDetails {
       documents: json['documents']?.toString() ?? '',
       milestones: json['milestones']?.toString() ?? '',
       summary: ProjectDetailsSummary.fromJson(
-        json['summary'] as Map<String, dynamic>,
+        _asMap(json['summary']),
       ),
     );
   }

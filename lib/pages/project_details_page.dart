@@ -1,233 +1,261 @@
 import 'package:flutter/material.dart';
 
 import '../core/models/dashboard_overview.dart';
+import '../core/utils/detail_records.dart';
+import '../widgets/project/project_detail_lists.dart';
 
 class ProjectDetailsPage extends StatelessWidget {
-  const ProjectDetailsPage({required this.project, super.key});
+  const ProjectDetailsPage({
+    required this.project,
+    this.currency = 'MWK',
+    super.key,
+  });
 
   final AssignedProject project;
 
-  String _value(String value) {
-    final plainText = value.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-    return plainText.isEmpty ? '—' : plainText;
+  /// Used when a transaction doesn't carry its own currency.
+  final String currency;
+
+  static String _text(String? value) {
+    final plain = (value ?? '').replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    return plain.isEmpty ? '—' : plain;
   }
+
+  static String _percent(num value) => '${value.round()}%';
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final details = project.details;
+    final raw = details.raw;
     final summary = details.summary;
     final location = project.location;
+    final milestone = project.milestoneCompletion;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Project details')),
+      appBar: AppBar(
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text(
+          'Project Details',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: _SyncBadge(lastSynced: _text(project.stats.lastSynced)),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          _HeroCard(
+            title: _text(project.title),
+            contractRef: _text(project.contractRef),
+            publication: _text(project.status.publication),
+            progress: _text(project.status.progress),
+            department: displayText(raw['department'], fallback: 'No department'),
+          ),
+          const SizedBox(height: 12),
+          IntrinsicHeight(
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _MetricCard(
+                  icon: Icons.payments_outlined,
+                  label: 'Approved Budget',
+                  value: _text(project.stats.approvedBudget),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricCard(
+                  icon: Icons.verified_outlined,
+                  label: 'KPIs Met',
+                  value: _text(project.stats.kpisMet),
+                ),
+              ),
+            ],
+          ),
+          ),
+          const SizedBox(height: 12),
+          IntrinsicHeight(
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _MetricCard(
+                  icon: Icons.flag_outlined,
+                  label: 'Published KPIs',
+                  value: _text(summary.publishedKpiCount),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetricCard(
+                  icon: Icons.task_alt,
+                  label: 'Achieved KPIs',
+                  value: _text(summary.achievedKpiCount),
+                ),
+              ),
+            ],
+          ),
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Milestone Completion',
+            icon: Icons.timeline,
+            children: [
+              Row(
                 children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        minHeight: 10,
+                        value: (milestone / 100).clamp(0.0, 1.0).toDouble(),
+                        backgroundColor: colorScheme.surfaceContainerHighest,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Text(
-                    project.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    _percent(milestone),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Project ID: ${_value(project.id)}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Project code: ${_value(project.contractRef)}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (project.section?.isNotEmpty ?? false) ...[
-                    const SizedBox(height: 4),
-                    _LabeledValue(
-                      label: 'Section',
-                      value: _value(project.section!),
-                    ),
-                  ],
-                  if (project.activity.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    _LabeledValue(
-                      label: 'Activity',
-                      value: _value(project.activity),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _StatusChip(
-                        label: 'Publication: ${_value(project.status.publication)}',
-                      ),
-                      _StatusChip(
-                        label: 'Progress: ${_value(project.status.progress)}',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.donut_large,
-                        color: colorScheme.primary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Milestone completion',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      Text(
-                        '${project.milestoneCompletion}%',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: (project.milestoneCompletion / 100)
-                        .clamp(0.0, 1.0)
-                        .toDouble(),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: 12),
+              MilestonesList(value: raw['milestones']),
+            ],
           ),
-          _DetailsSection(
-            title: 'Project information',
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Overview',
+            icon: Icons.description_outlined,
             children: [
-              _LabeledValue(
+              _InfoRow(label: 'Project ID', value: _text(project.id)),
+              _InfoRow(label: 'Section', value: _text(project.section)),
+              _InfoRow(label: 'Activity', value: _text(project.activity)),
+              _InfoRow(
                 label: 'Description',
-                value: _value(details.description),
+                value: displayText(raw['description']),
               ),
-              _LabeledValue(label: 'Type', value: _value(details.type)),
-              _LabeledValue(
-                label: 'Start date',
-                value: _value(details.startDate),
+              _InfoRow(label: 'Type', value: displayText(raw['type'])),
+              _InfoRow(
+                label: 'Category',
+                value: displayText(raw['project_category']),
               ),
-              _LabeledValue(label: 'End date', value: _value(details.endDate)),
-              _LabeledValue(label: 'Duration', value: _value(details.duration)),
-              _LabeledValue(
-                label: 'Department',
-                value: _value(details.department),
-              ),
-              _LabeledValue(
-                label: 'Project category',
-                value: _value(details.projectCategory),
-              ),
-              _LabeledValue(
-                label: 'Districts',
-                value: _value(details.districts),
-              ),
-              _LabeledValue(label: 'Funders', value: _value(details.funders)),
-              _LabeledValue(label: 'Budgets', value: _value(details.budgets)),
-              _LabeledValue(
-                label: 'Objectives',
-                value: _value(details.objectives),
-              ),
-              _LabeledValue(
-                label: 'Staffing requirements',
-                value: _value(details.staffingRequirements),
-              ),
-              _LabeledValue(
-                label: 'Employees',
-                value: _value(details.employees),
-              ),
-              _LabeledValue(label: 'KPIs', value: _value(details.kpis)),
-              _LabeledValue(
-                label: 'Financial transactions',
-                value: _value(details.financialTransactions),
-              ),
-              _LabeledValue(label: 'Documents', value: _value(details.documents)),
-              _LabeledValue(
-                label: 'Milestones',
-                value: _value(details.milestones),
-              ),
-            ],
-          ),
-          _DetailsSection(
-            title: 'Project statistics',
-            children: [
-              _LabeledValue(
-                label: 'Approved budget',
-                value: _value(project.stats.approvedBudget),
-              ),
-              _LabeledValue(
-                label: 'KPIs met',
-                value: _value(project.stats.kpisMet),
-              ),
-              _LabeledValue(
-                label: 'Last synced',
-                value: _value(project.stats.lastSynced),
-              ),
-              _LabeledValue(
-                label: 'Total budget',
-                value: _value(summary.totalBudget),
-              ),
-              _LabeledValue(
-                label: 'Total expenses',
-                value: summary.totalExpenses.toString(),
-              ),
-              _LabeledValue(
-                label: 'Budget utilization',
-                value: '${summary.budgetUtilizationPercentage}%',
-              ),
-              _LabeledValue(
+              _InfoRow(label: 'Funders', value: displayText(raw['funders'])),
+              _InfoRow(
                 label: 'Objectives achieved',
-                value: '${summary.objectivesAchievementPercentage}%',
+                value: _percent(summary.objectivesAchievementPercentage),
               ),
-              _LabeledValue(
-                label: 'Required staff',
-                value: summary.requiredStaff.toString(),
-              ),
-              _LabeledValue(
-                label: 'Employee count',
-                value: _value(summary.employeeCount),
-              ),
-              _LabeledValue(
-                label: 'Published KPI count',
-                value: _value(summary.publishedKpiCount),
-              ),
-              _LabeledValue(
-                label: 'Achieved KPI count',
-                value: _value(summary.achievedKpiCount),
+              const _SubHeading('Objectives'),
+              StatusChecklist(
+                value: raw['objectives'],
+                emptyMessage: 'No objectives recorded.',
               ),
             ],
           ),
-          _DetailsSection(
-            title: 'Location',
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Location & Timeline',
+            icon: Icons.place_outlined,
             children: [
-              _LabeledValue(label: 'Name', value: _value(location.name)),
-              _LabeledValue(
-                label: 'Latitude',
-                value: _value(location.latitude),
-              ),
-              _LabeledValue(
-                label: 'Longitude',
-                value: _value(location.longitude),
-              ),
-              _LabeledValue(
+              _InfoRow(label: 'Location', value: _text(location.name)),
+              _InfoRow(label: 'Districts', value: displayText(raw['districts'])),
+              _InfoRow(label: 'Latitude', value: _text(location.latitude)),
+              _InfoRow(label: 'Longitude', value: _text(location.longitude)),
+              _InfoRow(
                 label: 'Accuracy',
                 value: location.accuracy == null
                     ? '—'
-                    : '${location.accuracy} m',
+                    : '±${location.accuracy} m',
+              ),
+              _InfoRow(label: 'Start date', value: displayText(raw['start_date'])),
+              _InfoRow(label: 'End date', value: displayText(raw['end_date'])),
+              _InfoRow(label: 'Duration', value: displayText(raw['duration'])),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Resources & Staffing',
+            icon: Icons.groups_outlined,
+            children: [
+              _InfoRow(
+                label: 'Required staff',
+                value: summary.requiredStaff.toString(),
+              ),
+              _InfoRow(
+                label: 'Employee count',
+                value: _text(summary.employeeCount),
+              ),
+              _InfoRow(label: 'Budgets', value: displayText(raw['budgets'])),
+              _InfoRow(
+                label: 'Total budget',
+                value: _text(summary.totalBudget),
+              ),
+              _InfoRow(
+                label: 'Total expenses',
+                value: summary.totalExpenses.toString(),
+              ),
+              _InfoRow(
+                label: 'Budget utilization',
+                value: _percent(summary.budgetUtilizationPercentage),
+              ),
+              const _SubHeading('Staffing requirements'),
+              StaffList(
+                value: raw['staffing_requirements'],
+                emptyMessage: 'No staffing requirements recorded.',
+                icon: Icons.badge_outlined,
+              ),
+              const _SubHeading('Employees'),
+              StaffList(
+                value: raw['employees'],
+                emptyMessage: 'No employees assigned.',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'KPIs',
+            icon: Icons.verified_outlined,
+            children: [
+              StatusChecklist(
+                value: raw['kpis'],
+                emptyMessage: 'No KPIs recorded.',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Financial Transactions',
+            icon: Icons.account_balance_wallet_outlined,
+            children: [
+              FinancialTransactionsList(
+                value: raw['financial_transactions'],
+                defaultCurrency: currency,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Documents',
+            icon: Icons.folder_open_outlined,
+            children: [
+              GenericRecordList(
+                value: raw['documents'],
+                emptyMessage: 'No documents uploaded.',
               ),
             ],
           ),
@@ -237,38 +265,276 @@ class ProjectDetailsPage extends StatelessWidget {
   }
 }
 
-class _DetailsSection extends StatelessWidget {
-  const _DetailsSection({required this.title, required this.children});
+class _SyncBadge extends StatelessWidget {
+  const _SyncBadge({required this.lastSynced});
 
-  final String title;
-  final List<Widget> children;
+  final String lastSynced;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(top: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.sync,
+            size: 14,
+            color: colorScheme.onSecondaryContainer,
+          ),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 110),
+            child: Text(
+              lastSynced,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSecondaryContainer,
+              ),
             ),
-            const SizedBox(height: 8),
-            ...children,
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.title,
+    required this.contractRef,
+    required this.publication,
+    required this.progress,
+    required this.department,
+  });
+
+  final String title;
+  final String contractRef;
+  final String publication;
+  final String progress;
+  final String department;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final onPrimary = colorScheme.onPrimary;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'CONTRACT REF: $contractRef',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 0.5,
+              fontWeight: FontWeight.bold,
+              color: onPrimary.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 22,
+              height: 1.25,
+              fontWeight: FontWeight.bold,
+              color: onPrimary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _HeroTag(
+                label: publication,
+                background: colorScheme.secondaryContainer,
+                foreground: colorScheme.onSecondaryContainer,
+              ),
+              _HeroTag(
+                label: progress,
+                background: onPrimary.withValues(alpha: 0.16),
+                foreground: onPrimary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Icon(
+                Icons.apartment_outlined,
+                size: 16,
+                color: onPrimary.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  department,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: onPrimary.withValues(alpha: 0.85),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroTag extends StatelessWidget {
+  const _HeroTag({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: foreground,
         ),
       ),
     );
   }
 }
 
-class _LabeledValue extends StatelessWidget {
-  const _LabeledValue({required this.label, required this.value});
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: colorScheme.onSecondaryContainer,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: colorScheme.secondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -277,32 +543,55 @@ class _LabeledValue extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 140,
+            width: 120,
             child: Text(
               label,
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(child: SelectableText(value)),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label});
+class _SubHeading extends StatelessWidget {
+  const _SubHeading(this.label);
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Chip(label: Text(label));
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 8),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: colorScheme.onSurface,
+        ),
+      ),
+    );
   }
 }
