@@ -150,15 +150,24 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
       if (section != null && section.isNotEmpty) section,
       if (activity != null && activity.isNotEmpty) activity,
     ].join(' • ');
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
+    return Material(
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
         borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        onTap: () => context.pushNamed(
+          'project-details',
+          extra: project,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -364,7 +373,9 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
               ),
             ),
           ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

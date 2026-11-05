@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../models/dashboard_overview.dart';
 import '../../pages/home_page.dart';
 import '../../pages/project_document_upload_page.dart';
+import '../../pages/project_details_page.dart';
 import '../../pages/project_gps_update_page.dart';
 import '../../pages/login_page.dart';
 import '../../pages/project_map_page.dart';
@@ -18,6 +19,7 @@ const _homePath = '/home';
 const _projectMapPath = '/home/project-map';
 const _projectGpsUpdatePath = '/home/project-map/update-gps';
 const _projectDocumentUploadPath = '/home/project-document-upload';
+const _projectDetailsPath = '/home/project-details';
 const _notificationsPath = '/home/notifications';
 
 class AppRouter extends StatefulWidget {
@@ -54,6 +56,19 @@ class _AppRouterState extends State<AppRouter> {
           path: _notificationsPath,
           name: 'notifications',
           builder: (_, _) => const NotificationsPage(),
+        ),
+        GoRoute(
+          path: _projectDetailsPath,
+          name: 'project-details',
+          builder: (_, state) {
+            final project = state.extra;
+            if (project is! AssignedProject) {
+              return const Scaffold(
+                body: Center(child: Text('Unable to load project details.')),
+              );
+            }
+            return ProjectDetailsPage(project: project);
+          },
         ),
         GoRoute(
           path: _projectMapPath,

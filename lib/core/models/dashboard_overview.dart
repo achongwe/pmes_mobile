@@ -137,6 +137,7 @@ class AssignedProject {
   final num milestoneCompletion;
   final ProjectStats stats;
   final ProjectLocation location;
+  final ProjectDetails details;
 
   const AssignedProject({
     required this.id,
@@ -148,6 +149,7 @@ class AssignedProject {
     required this.milestoneCompletion,
     required this.stats,
     required this.location,
+    required this.details,
   });
 
   factory AssignedProject.fromJson(Map<String, dynamic> json) {
@@ -161,6 +163,111 @@ class AssignedProject {
       milestoneCompletion: json['milestone_completion'] as num? ?? 0,
       stats: ProjectStats.fromJson(json['stats'] as Map<String, dynamic>),
       location: ProjectLocation.fromJson(json['location'] as Map<String, dynamic>),
+      details: ProjectDetails.fromJson(json['details'] as Map<String, dynamic>),
+    );
+  }
+}
+
+class ProjectDetails {
+  final String description;
+  final String type;
+  final String startDate;
+  final String endDate;
+  final String duration;
+  final String department;
+  final String projectCategory;
+  final String districts;
+  final String funders;
+  final String budgets;
+  final String objectives;
+  final String staffingRequirements;
+  final String employees;
+  final String kpis;
+  final String financialTransactions;
+  final String documents;
+  final String milestones;
+  final ProjectDetailsSummary summary;
+
+  const ProjectDetails({
+    required this.description,
+    required this.type,
+    required this.startDate,
+    required this.endDate,
+    required this.duration,
+    required this.department,
+    required this.projectCategory,
+    required this.districts,
+    required this.funders,
+    required this.budgets,
+    required this.objectives,
+    required this.staffingRequirements,
+    required this.employees,
+    required this.kpis,
+    required this.financialTransactions,
+    required this.documents,
+    required this.milestones,
+    required this.summary,
+  });
+
+  factory ProjectDetails.fromJson(Map<String, dynamic> json) {
+    return ProjectDetails(
+      description: json['description']?.toString() ?? '',
+      type: json['type']?.toString() ?? '',
+      startDate: json['start_date']?.toString() ?? '',
+      endDate: json['end_date']?.toString() ?? '',
+      duration: json['duration']?.toString() ?? '',
+      department: json['department']?.toString() ?? '',
+      projectCategory: json['project_category']?.toString() ?? '',
+      districts: json['districts']?.toString() ?? '',
+      funders: json['funders']?.toString() ?? '',
+      budgets: json['budgets']?.toString() ?? '',
+      objectives: json['objectives']?.toString() ?? '',
+      staffingRequirements: json['staffing_requirements']?.toString() ?? '',
+      employees: json['employees']?.toString() ?? '',
+      kpis: json['kpis']?.toString() ?? '',
+      financialTransactions: json['financial_transactions']?.toString() ?? '',
+      documents: json['documents']?.toString() ?? '',
+      milestones: json['milestones']?.toString() ?? '',
+      summary: ProjectDetailsSummary.fromJson(
+        json['summary'] as Map<String, dynamic>,
+      ),
+    );
+  }
+}
+
+class ProjectDetailsSummary {
+  final String totalBudget;
+  final num totalExpenses;
+  final num budgetUtilizationPercentage;
+  final num objectivesAchievementPercentage;
+  final num requiredStaff;
+  final String employeeCount;
+  final String publishedKpiCount;
+  final String achievedKpiCount;
+
+  const ProjectDetailsSummary({
+    required this.totalBudget,
+    required this.totalExpenses,
+    required this.budgetUtilizationPercentage,
+    required this.objectivesAchievementPercentage,
+    required this.requiredStaff,
+    required this.employeeCount,
+    required this.publishedKpiCount,
+    required this.achievedKpiCount,
+  });
+
+  factory ProjectDetailsSummary.fromJson(Map<String, dynamic> json) {
+    return ProjectDetailsSummary(
+      totalBudget: json['total_budget']?.toString() ?? '',
+      totalExpenses: json['total_expenses'] as num? ?? 0,
+      budgetUtilizationPercentage:
+          json['budget_utilization_percentage'] as num? ?? 0,
+      objectivesAchievementPercentage:
+          json['objectives_achievement_percentage'] as num? ?? 0,
+      requiredStaff: json['required_staff'] as num? ?? 0,
+      employeeCount: json['employee_count']?.toString() ?? '',
+      publishedKpiCount: json['published_kpi_count']?.toString() ?? '',
+      achievedKpiCount: json['achieved_kpi_count']?.toString() ?? '',
     );
   }
 }
