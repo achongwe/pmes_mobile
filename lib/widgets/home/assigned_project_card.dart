@@ -10,6 +10,7 @@ import '../../core/models/dashboard_overview.dart';
 import '../../core/services/api_exception.dart';
 import '../../core/services/dashboard_service.dart';
 import '../../core/services/session_provider.dart';
+import '../../core/utils/detail_records.dart';
 import '../../pages/create_kpi_screen.dart';
 import '../../pages/project_gps_update_page.dart';
 import '../../pages/record_financial_transaction_screen.dart';
@@ -36,6 +37,38 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
   final List<XFile> _progressImages = [];
   bool _isUploadingProgressImages = false;
   int _uploadedImageCount = 0;
+
+  static String? _textValue(Object? value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
+  }
+
+  static String? _firstTextValue(Map<dynamic, dynamic> source, List<String> keys) {
+    for (final key in keys) {
+      final text = _textValue(source[key]);
+      if (text != null) return text;
+    }
+    return null;
+  }
+
+  List<ObjectiveOption> _objectiveOptions() {
+    final options = <ObjectiveOption>[];
+    final seenIds = <String>{};
+    final objectiveItems = detailItems(widget.project.details.raw['objectives']);
+
+    for (final item in objectiveItems) {
+      if (item is! Map) continue;
+      final id = _firstTextValue(item, const ['id', 'objective_id', 'uuid']);
+      if (id == null || !seenIds.add(id)) continue;
+      final label =
+          _firstTextValue(item, const ['name', 'title', 'objective']) ??
+          displayText(item, fallback: id);
+      options.add(ObjectiveOption(id: id, label: label));
+    }
+
+    return options;
+  }
 
   static String _stripHtml(String value, {int maxLength = 220}) {
     final plainText = value.replaceAll(RegExp(r'<[^>]*>'), '').trim();
@@ -89,6 +122,7 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
           extra: CreateKpiArgs(
             projectId: widget.project.id,
             projectTitle: widget.project.title,
+            objectives: _objectiveOptions(),
           ),
         );
         break;
@@ -98,6 +132,7 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
           extra: RecordFinancialTransactionArgs(
             projectId: widget.project.id,
             projectTitle: widget.project.title,
+            objectives: _objectiveOptions(),
           ),
         );
         break;

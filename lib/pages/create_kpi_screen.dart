@@ -8,10 +8,22 @@ import '../core/services/dashboard_service.dart';
 import '../core/services/session_provider.dart';
 
 class CreateKpiArgs {
-  const CreateKpiArgs({required this.projectId, required this.projectTitle});
+  const CreateKpiArgs({
+    required this.projectId,
+    required this.projectTitle,
+    required this.objectives,
+  });
 
   final String projectId;
   final String projectTitle;
+  final List<ObjectiveOption> objectives;
+}
+
+class ObjectiveOption {
+  const ObjectiveOption({required this.id, required this.label});
+
+  final String id;
+  final String label;
 }
 
 class CreateKpiScreen extends StatefulWidget {
@@ -43,18 +55,26 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
   ];
 
   final _formKey = GlobalKey<FormState>();
-  final _objectiveIdController = TextEditingController();
   final _nameController = TextEditingController();
   final _baselineController = TextEditingController();
   final _targetController = TextEditingController();
   final _descriptionController = TextEditingController();
+  String? _selectedObjectiveId;
   String _aggregationMethod = _aggregationMethods.first;
   String _reportingPeriod = _reportingPeriods.first;
   bool _isSubmitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    final options = widget.args.objectives;
+    if (options.length == 1) {
+      _selectedObjectiveId = options.first.id;
+    }
+  }
+
+  @override
   void dispose() {
-    _objectiveIdController.dispose();
     _nameController.dispose();
     _baselineController.dispose();
     _targetController.dispose();
@@ -86,13 +106,12 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
       return;
     }
 
-    final objectiveId = _objectiveIdController.text.trim();
     setState(() => _isSubmitting = true);
     try {
       final message = await _dashboardService.createProjectKpi(
         token: token,
         projectId: widget.args.projectId,
-        objectiveId: objectiveId.isEmpty ? null : objectiveId,
+        objectiveId: _selectedObjectiveId,
         name: _nameController.text.trim(),
         baselineValue: _parseNumber(_baselineController.text)!,
         targetValue: _parseNumber(_targetController.text)!,
@@ -152,14 +171,30 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField(
-                      controller: _objectiveIdController,
-                      enabled: !_isSubmitting,
-                      textInputAction: TextInputAction.next,
+                    DropdownButtonFormField<String?>(
+                      initialValue: _selectedObjectiveId,
+                      isExpanded: true,
                       decoration: _inputDecoration(
                         colorScheme,
-                        labelText: 'Objective ID (optional)',
+                        labelText: 'Objective (optional)',
                       ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('No objective'),
+                        ),
+                        ...widget.args.objectives.map(
+                          (objective) => DropdownMenuItem<String?>(
+                            value: objective.id,
+                            child: Text(objective.label),
+                          ),
+                        ),
+                      ],
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) {
+                              setState(() => _selectedObjectiveId = value);
+                            },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(

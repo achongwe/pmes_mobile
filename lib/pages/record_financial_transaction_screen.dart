@@ -6,15 +6,18 @@ import 'package:provider/provider.dart';
 import '../core/services/api_exception.dart';
 import '../core/services/dashboard_service.dart';
 import '../core/services/session_provider.dart';
+import 'create_kpi_screen.dart';
 
 class RecordFinancialTransactionArgs {
   const RecordFinancialTransactionArgs({
     required this.projectId,
     required this.projectTitle,
+    required this.objectives,
   });
 
   final String projectId;
   final String projectTitle;
+  final List<ObjectiveOption> objectives;
 }
 
 class RecordFinancialTransactionScreen extends StatefulWidget {
@@ -33,22 +36,25 @@ class _RecordFinancialTransactionScreenState
   static const _inputRadius = 12.0;
 
   final _formKey = GlobalKey<FormState>();
-  final _objectiveIdController = TextEditingController();
   final _amountController = TextEditingController();
   final _dateController = TextEditingController();
   final _remarkController = TextEditingController();
+  String? _selectedObjectiveId;
   DateTime? _transactionDate;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
+    final options = widget.args.objectives;
+    if (options.length == 1) {
+      _selectedObjectiveId = options.first.id;
+    }
     _setTransactionDate(DateTime.now());
   }
 
   @override
   void dispose() {
-    _objectiveIdController.dispose();
     _amountController.dispose();
     _dateController.dispose();
     _remarkController.dispose();
@@ -104,13 +110,12 @@ class _RecordFinancialTransactionScreenState
       return;
     }
 
-    final objectiveId = _objectiveIdController.text.trim();
     setState(() => _isSubmitting = true);
     try {
       final message = await _dashboardService.recordFinancialTransaction(
         token: token,
         projectId: widget.args.projectId,
-        objectiveId: objectiveId.isEmpty ? null : objectiveId,
+        objectiveId: _selectedObjectiveId,
         amount: num.parse(_amountController.text.trim()),
         transactionDate: _isoDate(_transactionDate!),
         remark: _remarkController.text.trim(),
@@ -169,14 +174,30 @@ class _RecordFinancialTransactionScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField(
-                      controller: _objectiveIdController,
-                      enabled: !_isSubmitting,
-                      textInputAction: TextInputAction.next,
+                    DropdownButtonFormField<String?>(
+                      initialValue: _selectedObjectiveId,
+                      isExpanded: true,
                       decoration: _inputDecoration(
                         colorScheme,
-                        labelText: 'Objective ID (optional)',
+                        labelText: 'Objective (optional)',
                       ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('No objective'),
+                        ),
+                        ...widget.args.objectives.map(
+                          (objective) => DropdownMenuItem<String?>(
+                            value: objective.id,
+                            child: Text(objective.label),
+                          ),
+                        ),
+                      ],
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) {
+                              setState(() => _selectedObjectiveId = value);
+                            },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
