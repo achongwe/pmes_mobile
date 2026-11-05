@@ -7,18 +7,22 @@ import '../services/session_provider.dart';
 import '../theme/app_theme.dart';
 import '../models/dashboard_overview.dart';
 import '../../pages/home_page.dart';
+import '../../pages/create_kpi_screen.dart';
 import '../../pages/project_document_upload_page.dart';
 import '../../pages/project_details_page.dart';
 import '../../pages/project_gps_update_page.dart';
 import '../../pages/login_page.dart';
 import '../../pages/project_map_page.dart';
 import '../../pages/notifications_page.dart';
+import '../../pages/record_financial_transaction_screen.dart';
 
 const _loginPath = '/login';
 const _homePath = '/home';
 const _projectMapPath = '/home/project-map';
 const _projectGpsUpdatePath = '/home/project-map/update-gps';
 const _projectDocumentUploadPath = '/home/project-document-upload';
+const _projectCreateKpiPath = '/home/project-create-kpi';
+const _projectRecordExpenditurePath = '/home/project-record-expenditure';
 const _projectDetailsPath = '/home/project-details';
 const _notificationsPath = '/home/notifications';
 
@@ -111,6 +115,36 @@ class _AppRouterState extends State<AppRouter> {
               );
             }
             return ProjectDocumentUploadPage(projects: projects);
+          },
+        ),
+        GoRoute(
+          path: _projectCreateKpiPath,
+          name: 'project-create-kpi',
+          builder: (_, state) {
+            final args = state.extra;
+            if (args is! CreateKpiArgs) {
+              return const Scaffold(
+                body: Center(
+                  child: Text('Unable to open KPI form for this project.'),
+                ),
+              );
+            }
+            return CreateKpiScreen(args: args);
+          },
+        ),
+        GoRoute(
+          path: _projectRecordExpenditurePath,
+          name: 'project-record-expenditure',
+          builder: (_, state) {
+            final args = state.extra;
+            if (args is! RecordFinancialTransactionArgs) {
+              return const Scaffold(
+                body: Center(
+                  child: Text('Unable to open the expenditure form.'),
+                ),
+              );
+            }
+            return RecordFinancialTransactionScreen(args: args);
           },
         ),
       ],

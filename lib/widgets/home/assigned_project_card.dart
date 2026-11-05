@@ -10,8 +10,16 @@ import '../../core/models/dashboard_overview.dart';
 import '../../core/services/api_exception.dart';
 import '../../core/services/dashboard_service.dart';
 import '../../core/services/session_provider.dart';
+import '../../pages/create_kpi_screen.dart';
 import '../../pages/project_gps_update_page.dart';
+import '../../pages/record_financial_transaction_screen.dart';
 import 'project_map_banner.dart';
+
+enum _ProgressAction {
+  updateKpiStatus,
+  updateBudgetStatus,
+  uploadProgressEvidence,
+}
 
 class AssignedProjectCard extends StatefulWidget {
   const AssignedProjectCard({required this.project, super.key});
@@ -35,7 +43,71 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
     return '${plainText.substring(0, maxLength).trim()}…';
   }
 
-  Future<void> _logProgress() async {
+  Future<_ProgressAction?> _showLogProgressOptionsSheet() {
+    return showModalBottomSheet<_ProgressAction>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.rule_folder_outlined),
+              title: const Text('Update KPI Status'),
+              subtitle: const Text('Record KPI progress and adjustments'),
+              onTap: () =>
+                  Navigator.pop(context, _ProgressAction.updateKpiStatus),
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('Update Budget Status'),
+              subtitle: const Text('Record budget usage and changes'),
+              onTap: () =>
+                  Navigator.pop(context, _ProgressAction.updateBudgetStatus),
+            ),
+            ListTile(
+              leading: const Icon(Icons.attach_file_outlined),
+              title: const Text('Upload Progress Evidence'),
+              subtitle: const Text('Add progress documents or photos'),
+              onTap: () => Navigator.pop(
+                context,
+                _ProgressAction.uploadProgressEvidence,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onLogProgressPressed() async {
+    final action = await _showLogProgressOptionsSheet();
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case _ProgressAction.updateKpiStatus:
+        await context.pushNamed<bool>(
+          'project-create-kpi',
+          extra: CreateKpiArgs(
+            projectId: widget.project.id,
+            projectTitle: widget.project.title,
+          ),
+        );
+        break;
+      case _ProgressAction.updateBudgetStatus:
+        await context.pushNamed<bool>(
+          'project-record-expenditure',
+          extra: RecordFinancialTransactionArgs(
+            projectId: widget.project.id,
+            projectTitle: widget.project.title,
+          ),
+        );
+        break;
+      case _ProgressAction.uploadProgressEvidence:
+        await _selectProgressEvidenceImages();
+        break;
+    }
+  }
+
+  Future<void> _selectProgressEvidenceImages() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (context) => SafeArea(
@@ -155,10 +227,7 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
-        onTap: () => context.pushNamed(
-          'project-details',
-          extra: project,
-        ),
+        onTap: () => context.pushNamed('project-details', extra: project),
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
@@ -168,211 +237,219 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  'PROJECT CODE: ${project.contractRef}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurfaceVariant,
-                    letterSpacing: 0.5,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
               Row(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _StatusTag(
-                    label: project.status.publication,
-                    color: colorScheme.secondaryContainer,
-                    textColor: colorScheme.onSecondaryContainer,
+                  Expanded(
+                    child: Text(
+                      'PROJECT CODE: ${project.contractRef}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                        letterSpacing: 0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const SizedBox(width: 6),
-                  _StatusTag(
-                    label: project.status.progress,
-                    color: colorScheme.primaryContainer,
-                    textColor: colorScheme.onPrimaryContainer,
+                  const SizedBox(width: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _StatusTag(
+                        label: project.status.publication,
+                        color: colorScheme.secondaryContainer,
+                        textColor: colorScheme.onSecondaryContainer,
+                      ),
+                      const SizedBox(width: 6),
+                      _StatusTag(
+                        label: project.status.progress,
+                        color: colorScheme.primaryContainer,
+                        textColor: colorScheme.onPrimaryContainer,
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            project.title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-              height: 1.25,
-            ),
-          ),
-          if (subtitle.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          _buildMilestoneProgress(project.milestoneCompletion),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildSmallSpecCard(
-                  icon: Icons.payments_outlined,
-                  title: project.stats.approvedBudget,
-                  subtitle: 'Approved',
+              const SizedBox(height: 10),
+              Text(
+                project.title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                  height: 1.25,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildSmallSpecCard(
-                  icon: Icons.verified_outlined,
-                  title: project.stats.kpisMet,
-                  subtitle: 'KPIs Met',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildSmallSpecCard(
-                  icon: Icons.access_time_rounded,
-                  title: project.stats.lastSynced,
-                  subtitle: 'Last Synced',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ProjectMapBanner(location: project.location),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    context.pushNamed(
-                      'project-gps-update',
-                      extra: ProjectGpsUpdateArgs(
-                        projectId: project.id,
-                        projectTitle: project.title,
-                        location: project.location,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.near_me_outlined, size: 16),
-                  label: const Text(
-                    'Update GPS',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  style: _buttonStyle(
-                    colorScheme.secondaryContainer,
-                    foregroundColor: colorScheme.onSecondaryContainer,
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isUploadingProgressImages ? null : _logProgress,
-                  icon: const Icon(Icons.add_a_photo_outlined, size: 16),
-                  label: const Text(
-                    'Log Progress',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  style: _buttonStyle(
-                    colorScheme.secondary,
-                    foregroundColor: colorScheme.onSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (_progressImages.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 76,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _progressImages.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.file(
-                        File(_progressImages[index].path),
-                        width: 76,
-                        height: 76,
-                        fit: BoxFit.cover,
-                      ),
+              ],
+              const SizedBox(height: 16),
+              _buildMilestoneProgress(project.milestoneCompletion),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildSmallSpecCard(
+                      icon: Icons.payments_outlined,
+                      title: project.stats.approvedBudget,
+                      subtitle: 'Approved',
                     ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: IconButton(
-                        tooltip: 'Remove image',
-                        onPressed: _isUploadingProgressImages
-                            ? null
-                            : () {
-                                setState(() {
-                                  _progressImages.removeAt(index);
-                                });
-                              },
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.black54,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(28, 28),
-                          maximumSize: const Size(28, 28),
-                          padding: EdgeInsets.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildSmallSpecCard(
+                      icon: Icons.verified_outlined,
+                      title: project.stats.kpisMet,
+                      subtitle: 'KPIs Met',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildSmallSpecCard(
+                      icon: Icons.access_time_rounded,
+                      title: project.stats.lastSynced,
+                      subtitle: 'Last Synced',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ProjectMapBanner(location: project.location),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        context.pushNamed(
+                          'project-gps-update',
+                          extra: ProjectGpsUpdateArgs(
+                            projectId: project.id,
+                            projectTitle: project.title,
+                            location: project.location,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.near_me_outlined, size: 16),
+                      label: const Text(
+                        'Update GPS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
                         ),
-                        icon: const Icon(Icons.close, size: 16),
+                      ),
+                      style: _buttonStyle(
+                        colorScheme.secondaryContainer,
+                        foregroundColor: colorScheme.onSecondaryContainer,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _isUploadingProgressImages
+                          ? null
+                          : _onLogProgressPressed,
+                      icon: const Icon(Icons.edit_note_outlined, size: 16),
+                      label: const Text(
+                        'Log Progress',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      style: _buttonStyle(
+                        colorScheme.secondary,
+                        foregroundColor: colorScheme.onSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isUploadingProgressImages
-                    ? null
-                    : _uploadProgressImages,
-                icon: _isUploadingProgressImages
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.cloud_upload_outlined, size: 18),
-                label: Text(
-                  _isUploadingProgressImages
-                      ? 'Uploading ${_uploadedImageCount + 1} of '
-                            '${_uploadedImageCount + _progressImages.length}…'
-                      : 'Upload ${_progressImages.length} '
-                            '${_progressImages.length == 1 ? 'photo' : 'photos'}',
+              if (_progressImages.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 76,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _progressImages.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) => Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.file(
+                            File(_progressImages[index].path),
+                            width: 76,
+                            height: 76,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: IconButton(
+                            tooltip: 'Remove image',
+                            onPressed: _isUploadingProgressImages
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _progressImages.removeAt(index);
+                                    });
+                                  },
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black54,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(28, 28),
+                              maximumSize: const Size(28, 28),
+                              padding: EdgeInsets.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            icon: const Icon(Icons.close, size: 16),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                style: _buttonStyle(
-                  colorScheme.secondary,
-                  foregroundColor: colorScheme.onSecondary,
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isUploadingProgressImages
+                        ? null
+                        : _uploadProgressImages,
+                    icon: _isUploadingProgressImages
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_upload_outlined, size: 18),
+                    label: Text(
+                      _isUploadingProgressImages
+                          ? 'Uploading ${_uploadedImageCount + 1} of '
+                                '${_uploadedImageCount + _progressImages.length}…'
+                          : 'Upload ${_progressImages.length} '
+                                '${_progressImages.length == 1 ? 'photo' : 'photos'}',
+                    ),
+                    style: _buttonStyle(
+                      colorScheme.secondary,
+                      foregroundColor: colorScheme.onSecondary,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
             ],
           ),
         ),

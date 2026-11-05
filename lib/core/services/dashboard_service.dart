@@ -104,6 +104,118 @@ class DashboardService {
     );
   }
 
+  /// Creates a KPI for a project and returns the server's success message.
+  Future<String> createProjectKpi({
+    required String token,
+    required String projectId,
+    String? objectiveId,
+    required String name,
+    required num baselineValue,
+    required num targetValue,
+    required String aggregationMethod,
+    required String reportingPeriod,
+    required String description,
+  }) {
+    return _postJson(
+      token: token,
+      url: ApiConstants.projectKpis(projectId),
+      payload: {
+        'objective_id': objectiveId,
+        'name': name,
+        'baseline_value': baselineValue,
+        'target_value': targetValue,
+        'aggregation_method': aggregationMethod,
+        'reporting_period': reportingPeriod,
+        'description': description,
+      },
+      successMessage: 'KPI created successfully.',
+      failureMessage: 'Failed to create the KPI',
+    );
+  }
+
+  /// Records a financial expenditure and returns the server's success message.
+  Future<String> recordFinancialTransaction({
+    required String token,
+    required String projectId,
+    String? objectiveId,
+    required num amount,
+    required String transactionDate,
+    required String remark,
+  }) {
+    return _postJson(
+      token: token,
+      url: ApiConstants.projectFinancialTransactions(projectId),
+      payload: {
+        'objective_id': objectiveId,
+        'amount': amount,
+        'transaction_date': transactionDate,
+        'remark': remark,
+      },
+      successMessage: 'Financial expenditure successfully recorded.',
+      failureMessage: 'Failed to record the financial expenditure',
+    );
+  }
+
+  Future<String> _postJson({
+    required String token,
+    required String url,
+    required Map<String, dynamic> payload,
+    required String successMessage,
+    required String failureMessage,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse(url),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw const ApiException(
+        'The server took too long to respond. Please try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Unable to reach the server. Check your connection.',
+      );
+    }
+
+    Map<String, dynamic> body = {};
+    try {
+      final decoded = response.body.isEmpty ? {} : jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) body = decoded;
+    } on FormatException {
+      // Fall through to the status-based error below.
+    }
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      return body['message'] as String? ?? successMessage;
+    }
+
+    String? validationMessage;
+    final validationErrors = body['errors'];
+    if (validationErrors is Map) {
+      for (final errors in validationErrors.values) {
+        if (errors is List && errors.isNotEmpty) {
+          validationMessage = errors.first.toString();
+          break;
+        }
+      }
+    }
+    throw ApiException(
+      validationMessage ??
+          body['message'] as String? ??
+          '$failureMessage (HTTP ${response.statusCode}).',
+      statusCode: response.statusCode,
+    );
+  }
+
   Future<void> uploadProjectDocument({
     required String token,
     required String projectId,

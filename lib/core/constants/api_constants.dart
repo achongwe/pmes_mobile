@@ -22,4 +22,10 @@ class ApiConstants {
 
   static String projectDocuments(String projectId) =>
       '$baseUrl/projects/$projectId/documents';
+
+  static String projectKpis(String projectId) =>
+      '$baseUrl/projects/$projectId/kpis';
+
+  static String projectFinancialTransactions(String projectId) =>
+      '$baseUrl/projects/$projectId/financial-transactions';
 }
