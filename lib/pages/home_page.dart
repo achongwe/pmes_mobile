@@ -408,7 +408,7 @@ class _HomePageState extends State<HomePage> {
               )
             else
               for (final project in overview.projects) ...[
-                AssignedProjectCard(project: project),
+                AssignedProjectCard(project: project, onDataChanged: _refresh),
                 const SizedBox(height: 16),
               ],
             const SizedBox(height: 16),

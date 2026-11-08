@@ -23,9 +23,14 @@ enum _ProgressAction {
 }
 
 class AssignedProjectCard extends StatefulWidget {
-  const AssignedProjectCard({required this.project, super.key});
+  const AssignedProjectCard({
+    required this.project,
+    this.onDataChanged,
+    super.key,
+  });
 
   final AssignedProject project;
+  final Future<void> Function()? onDataChanged;
 
   @override
   State<AssignedProjectCard> createState() => _AssignedProjectCardState();
@@ -44,7 +49,10 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
     return text;
   }
 
-  static String? _firstTextValue(Map<dynamic, dynamic> source, List<String> keys) {
+  static String? _firstTextValue(
+    Map<dynamic, dynamic> source,
+    List<String> keys,
+  ) {
     for (final key in keys) {
       final text = _textValue(source[key]);
       if (text != null) return text;
@@ -55,7 +63,9 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
   List<ObjectiveOption> _objectiveOptions() {
     final options = <ObjectiveOption>[];
     final seenIds = <String>{};
-    final objectiveItems = detailItems(widget.project.details.raw['objectives']);
+    final objectiveItems = detailItems(
+      widget.project.details.raw['objectives'],
+    );
 
     for (final item in objectiveItems) {
       if (item is! Map) continue;
@@ -117,7 +127,7 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
 
     switch (action) {
       case _ProgressAction.updateKpiStatus:
-        await context.pushNamed<bool>(
+        final created = await context.pushNamed<bool>(
           'project-create-kpi',
           extra: CreateKpiArgs(
             projectId: widget.project.id,
@@ -125,9 +135,10 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
             objectives: _objectiveOptions(),
           ),
         );
+        if (created == true) await widget.onDataChanged?.call();
         break;
       case _ProgressAction.updateBudgetStatus:
-        await context.pushNamed<bool>(
+        final recorded = await context.pushNamed<bool>(
           'project-record-expenditure',
           extra: RecordFinancialTransactionArgs(
             projectId: widget.project.id,
@@ -135,6 +146,7 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
             objectives: _objectiveOptions(),
           ),
         );
+        if (recorded == true) await widget.onDataChanged?.call();
         break;
       case _ProgressAction.uploadProgressEvidence:
         await _selectProgressEvidenceImages();

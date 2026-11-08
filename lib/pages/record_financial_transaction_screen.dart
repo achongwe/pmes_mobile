@@ -181,17 +181,45 @@ class _RecordFinancialTransactionScreenState
                         colorScheme,
                         labelText: 'Objective (optional)',
                       ),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('No objective'),
-                        ),
+                      selectedItemBuilder: (context) => [
+                        const Text('No objective'),
                         ...widget.args.objectives.map(
-                          (objective) => DropdownMenuItem<String?>(
-                            value: objective.id,
-                            child: Text(objective.label),
+                          (objective) => Text(
+                            objective.label,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                      ],
+                      items: [
+                        for (var i = 0; i <= widget.args.objectives.length; i++)
+                          DropdownMenuItem<String?>(
+                            value: i == 0
+                                ? null
+                                : widget.args.objectives[i - 1].id,
+                            child: Container(
+                              width: double.infinity,
+                              constraints: const BoxConstraints(
+                                minHeight: kMinInteractiveDimension,
+                              ),
+                              alignment: Alignment.centerLeft,
+                              decoration: BoxDecoration(
+                                border: i == widget.args.objectives.length
+                                    ? null
+                                    : Border(
+                                        bottom: BorderSide(
+                                          color: colorScheme.outlineVariant,
+                                        ),
+                                      ),
+                              ),
+                              child: Text(
+                                i == 0
+                                    ? 'No objective'
+                                    : widget.args.objectives[i - 1].label,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
                       ],
                       onChanged: _isSubmitting
                           ? null
