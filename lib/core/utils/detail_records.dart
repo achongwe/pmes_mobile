@@ -50,6 +50,7 @@ class DetailRecord {
     this.date,
     this.percent,
     this.done,
+    this.workflowStatus,
     this.extras = const {},
   });
 
@@ -64,6 +65,9 @@ class DetailRecord {
   final String? date;
   final num? percent;
   final bool? done;
+
+  /// Normalised publication state: `Draft` or `Published` (null if unknown).
+  final String? workflowStatus;
   final Map<String, String> extras;
 
   static const _titleKeys = [
@@ -124,6 +128,13 @@ class DetailRecord {
     'completed',
   ];
 
+  static const _workflowStatusKeys = [
+    'workflow_status',
+    'publication_status',
+    'publish_status',
+  ];
+  static const _publishedFlagKeys = ['is_published', 'published'];
+
   static const _doneStatuses = {
     'completed',
     'complete',
@@ -159,13 +170,28 @@ class DetailRecord {
     return null;
   }
 
+  static String? _normalizeWorkflow(String? value) {
+    switch (value?.trim().toLowerCase()) {
+      case 'draft':
+      case 'unpublished':
+        return 'Draft';
+      case 'published':
+        return 'Published';
+    }
+    return null;
+  }
+
   static String humanize(String key) {
     final spaced = key.replaceAll('_', ' ').trim();
     if (spaced.isEmpty) return key;
     return spaced[0].toUpperCase() + spaced.substring(1);
   }
 
-  factory DetailRecord.from(Object? item, {Set<String> hiddenKeys = const {}}) {
+  factory DetailRecord.from(
+    Object? item, {
+    Set<String> hiddenKeys = const {},
+    bool includeWorkflowStatus = false,
+  }) {
     if (item is! Map) {
       return DetailRecord(title: _scalar(item) ?? '—');
     }
@@ -192,11 +218,26 @@ class DetailRecord {
       return null;
     }
 
+    String? workflowStatus;
+    if (includeWorkflowStatus) {
+      workflowStatus = _normalizeWorkflow(pick(_workflowStatusKeys));
+      if (workflowStatus == null) {
+        final published = _bool(pickRaw(_publishedFlagKeys));
+        if (published != null) {
+          workflowStatus = published ? 'Published' : 'Draft';
+        }
+      }
+    }
+
     final title = pick(_titleKeys);
     final subtitle = pick(_subtitleKeys, exclude: title);
     final projectObjective = pick(const ['project_objective'], exclude: title);
     final user = pick(const ['user'], exclude: title);
-    final status = pick(_statusKeys);
+    var status = pick(_statusKeys);
+    if (includeWorkflowStatus && _normalizeWorkflow(status) != null) {
+      workflowStatus ??= _normalizeWorkflow(status);
+      status = null;
+    }
     final type = pick(_typeKeys);
     final amount = pick(_amountKeys);
     final currency = pick(const ['currency']);
@@ -236,6 +277,7 @@ class DetailRecord {
       date: date,
       percent: percent,
       done: done,
+      workflowStatus: workflowStatus,
       extras: extras,
     );
   }

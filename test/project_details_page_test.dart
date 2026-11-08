@@ -60,6 +60,7 @@ void main() {
             'project_id': 'project-1',
             'project_objective_id': 101,
             'status': 'Pending',
+            'workflow_status': 'draft',
             'value': '5',
             'created_at': '2 hours ago',
             'updated_at': '1 hour ago',
@@ -147,12 +148,14 @@ void main() {
     await reveal(find.text('Km paved'));
     expect(find.text('Improve road access'), findsWidgets);
     expect(find.text('Pending'), findsOneWidget);
+    expect(find.text('Draft'), findsOneWidget);
 
     await reveal(find.text('Cement purchase'));
     expect(find.textContaining('John Banda'), findsOneWidget);
     expect(find.text('MWK 1M'), findsOneWidget);
     expect(find.text('Debit'), findsOneWidget);
-    expect(find.text('3 days ago'), findsOneWidget);
+    expect(find.text('3 days ago'), findsNothing);
+    expect(find.text('2 days ago'), findsNothing);
     expect(find.text('Credit'), findsOneWidget);
     expect(find.text('MWK 2.5T'), findsOneWidget);
 

@@ -229,6 +229,36 @@ Widget? _statusBadge(BuildContext context, String? status, bool? done) {
   );
 }
 
+Widget? _workflowBadge(BuildContext context, String? workflowStatus) {
+  if (workflowStatus == null) return null;
+  final colorScheme = Theme.of(context).colorScheme;
+  final published = workflowStatus == 'Published';
+  return _Badge(
+    label: workflowStatus,
+    background: published
+        ? colorScheme.primaryContainer
+        : colorScheme.surfaceContainerHighest,
+    foreground: published
+        ? colorScheme.onPrimaryContainer
+        : colorScheme.onSurfaceVariant,
+  );
+}
+
+Widget? _kpiBadges(BuildContext context, DetailRecord record) {
+  final workflow = _workflowBadge(context, record.workflowStatus);
+  final status = _statusBadge(
+    context,
+    record.status ?? record.type,
+    record.done,
+  );
+  if (workflow == null || status == null) return workflow ?? status;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.end,
+    mainAxisSize: MainAxisSize.min,
+    children: [workflow, const SizedBox(height: 4), status],
+  );
+}
+
 class FinancialTransactionsList extends StatelessWidget {
   const FinancialTransactionsList({
     required this.value,
@@ -263,9 +293,18 @@ class FinancialTransactionsList extends StatelessWidget {
       maxHeight: 360,
       recordBuilder: (item) => DetailRecord.from(
         item,
-        hiddenKeys: const {'project_id', 'user_id'},
+        includeWorkflowStatus: true,
+        hiddenKeys: const {
+          'project_id',
+          'user_id',
+          'date',
+          'transaction_date',
+          'created_at',
+          'updated_at',
+        },
       ),
       itemBuilder: (context, record) {
+        final workflow = _workflowBadge(context, record.workflowStatus);
         final credit = _isCredit(record.type ?? record.status);
         final amountText = record.amount == null
             ? null
@@ -281,25 +320,6 @@ class FinancialTransactionsList extends StatelessWidget {
             : colorScheme.error;
         return _RecordCard(
           record: record,
-          body: record.date == null
-              ? null
-              : Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      size: 12,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      record.date!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
           trailing: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -332,6 +352,7 @@ class FinancialTransactionsList extends StatelessWidget {
                       : colorScheme.onErrorContainer,
                 ),
               ],
+              if (workflow != null) ...[const SizedBox(height: 4), workflow],
             ],
           ),
         );
@@ -424,14 +445,20 @@ class KpiChecklist extends StatelessWidget {
     if (item is! Map) {
       return DetailRecord.from(
         item,
-        hiddenKeys: const {'project_id', 'project_objective_id', 'objective_id'},
+        hiddenKeys: const {
+          'project_id',
+          'project_objective_id',
+          'objective_id',
+        },
+        includeWorkflowStatus: true,
       );
     }
 
     final map = Map<String, dynamic>.from(item);
     final objectiveId = map['project_objective_id'] ?? map['objective_id'];
     final existingObjective = map['project_objective'];
-    if ((existingObjective == null || existingObjective.toString().trim().isEmpty) &&
+    if ((existingObjective == null ||
+            existingObjective.toString().trim().isEmpty) &&
         objectiveId != null) {
       map['project_objective'] = objectiveNamesById[objectiveId.toString()];
     }
@@ -439,6 +466,7 @@ class KpiChecklist extends StatelessWidget {
     return DetailRecord.from(
       map,
       hiddenKeys: const {'project_id', 'project_objective_id', 'objective_id'},
+      includeWorkflowStatus: true,
     );
   }
 
@@ -452,11 +480,7 @@ class KpiChecklist extends StatelessWidget {
       recordBuilder: (item) => _buildKpiRecord(item, objectiveNamesById),
       itemBuilder: (context, record) => _RecordCard(
         record: record,
-        trailing: _statusBadge(
-          context,
-          record.status ?? record.type,
-          record.done,
-        ),
+        trailing: _kpiBadges(context, record),
         body: record.amount == null && record.percent == null
             ? null
             : Text(

@@ -68,6 +68,35 @@ void main() {
     expect(record.extras.containsKey('Project objective id'), isFalse);
   });
 
+  test('derives Draft/Published workflow status when requested', () {
+    DetailRecord parse(Map<String, dynamic> map) =>
+        DetailRecord.from(map, includeWorkflowStatus: true);
+
+    expect(
+      parse({'name': 'A', 'workflow_status': 'published'}).workflowStatus,
+      'Published',
+    );
+    expect(parse({'name': 'B', 'is_published': false}).workflowStatus, 'Draft');
+    expect(parse({'name': 'C', 'is_published': 1}).workflowStatus, 'Published');
+
+    final fromStatus = parse({'name': 'D', 'status': 'Draft'});
+    expect(fromStatus.workflowStatus, 'Draft');
+    expect(fromStatus.status, isNull);
+
+    final withProgress = parse({
+      'name': 'E',
+      'workflow_status': 'draft',
+      'status': 'Pending',
+    });
+    expect(withProgress.workflowStatus, 'Draft');
+    expect(withProgress.status, 'Pending');
+
+    expect(
+      DetailRecord.from({'name': 'F', 'is_published': true}).workflowStatus,
+      isNull,
+    );
+  });
+
   test('displayText extracts clean labels from complex values', () {
     expect(displayText({'id': 6, 'name': 'Roads', 'code': 'RD'}), 'Roads');
     expect(displayText(jsonEncode({'id': 1, 'title': 'Works'})), 'Works');
