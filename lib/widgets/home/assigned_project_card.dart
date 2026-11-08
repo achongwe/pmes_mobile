@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/dashboard_overview.dart';
+import '../../core/models/evidence_item.dart';
 import '../../core/services/api_exception.dart';
 import '../../core/services/dashboard_service.dart';
 import '../../core/services/session_provider.dart';
@@ -21,6 +23,20 @@ enum _ProgressAction {
   updateBudgetStatus,
   uploadProgressEvidence,
 }
+
+enum _EvidenceSource { photo, video, document }
+
+const _documentExtensions = [
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'txt',
+];
+const _maxVideoDuration = Duration(minutes: 1);
 
 class AssignedProjectCard extends StatefulWidget {
   const AssignedProjectCard({
@@ -39,9 +55,8 @@ class AssignedProjectCard extends StatefulWidget {
 class _AssignedProjectCardState extends State<AssignedProjectCard> {
   final ImagePicker _imagePicker = ImagePicker();
   static const DashboardService _dashboardService = DashboardService();
-  final List<XFile> _progressImages = [];
-  bool _isUploadingProgressImages = false;
-  int _uploadedImageCount = 0;
+  EvidenceItem? _pendingEvidence;
+  bool _isUploadingEvidence = false;
 
   static String? _textValue(Object? value) {
     final text = value?.toString().trim();
@@ -109,7 +124,9 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
             ListTile(
               leading: const Icon(Icons.attach_file_outlined),
               title: const Text('Upload Progress Evidence'),
-              subtitle: const Text('Add progress documents or photos'),
+              subtitle: const Text(
+                'Take a picture, record a video, or upload a document',
+              ),
               onTap: () => Navigator.pop(
                 context,
                 _ProgressAction.uploadProgressEvidence,
@@ -149,26 +166,33 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
         if (recorded == true) await widget.onDataChanged?.call();
         break;
       case _ProgressAction.uploadProgressEvidence:
-        await _selectProgressEvidenceImages();
+        await _selectProgressEvidence();
         break;
     }
   }
 
-  Future<void> _selectProgressEvidenceImages() async {
-    final source = await showModalBottomSheet<ImageSource>(
+  Future<void> _selectProgressEvidence() async {
+    final source = await showModalBottomSheet<_EvidenceSource>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Take a picture'),
+              onTap: () => Navigator.pop(context, _EvidenceSource.photo),
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Take a photo'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
+              leading: const Icon(Icons.videocam_outlined),
+              title: const Text('Record a video'),
+              subtitle: const Text('Up to 1 minute'),
+              onTap: () => Navigator.pop(context, _EvidenceSource.video),
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('Upload a document'),
+              subtitle: const Text('PDF, Word, Excel, PowerPoint or text'),
+              onTap: () => Navigator.pop(context, _EvidenceSource.document),
             ),
           ],
         ),
@@ -177,32 +201,52 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
     if (source == null || !mounted) return;
 
     try {
-      final images = source == ImageSource.gallery
-          ? await _imagePicker.pickMultiImage()
-          : await _imagePicker
-                .pickImage(source: ImageSource.camera)
-                .then((image) => image == null ? <XFile>[] : [image]);
-      if (!mounted || images.isEmpty) return;
+      final EvidenceType type;
+      final XFile? file;
+      switch (source) {
+        case _EvidenceSource.photo:
+          type = EvidenceType.photo;
+          file = await _imagePicker.pickImage(source: ImageSource.camera);
+        case _EvidenceSource.video:
+          type = EvidenceType.video;
+          file = await _imagePicker.pickVideo(
+            source: ImageSource.camera,
+            maxDuration: _maxVideoDuration,
+          );
+        case _EvidenceSource.document:
+          type = EvidenceType.document;
+          final result = await FilePicker.pickFile(
+            type: FileType.custom,
+            allowedExtensions: _documentExtensions,
+          );
+          final path = result?.path;
+          if (result != null && path == null) {
+            _showMessage('Unable to access the selected file.');
+            return;
+          }
+          file = path == null ? null : XFile(path);
+      }
+      if (!mounted || file == null) return;
+
+      final sizeBytes = await file.length();
+      if (!mounted) return;
       setState(() {
-        _progressImages.addAll(images);
-        _uploadedImageCount = 0;
+        _pendingEvidence = EvidenceItem(
+          file: file!,
+          type: type,
+          sizeBytes: sizeBytes,
+        );
       });
     } on PlatformException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              error.message ?? 'Unable to open the selected image source.',
-            ),
-          ),
-        );
+      if (mounted) {
+        _showMessage(error.message ?? 'Unable to open the selected source.');
+      }
     }
   }
 
-  Future<void> _uploadProgressImages() async {
-    if (_progressImages.isEmpty || _isUploadingProgressImages) return;
+  Future<void> _uploadProgressEvidence() async {
+    final evidence = _pendingEvidence;
+    if (evidence == null || _isUploadingEvidence) return;
 
     final token = context.read<SessionProvider>().token;
     if (token == null) {
@@ -211,42 +255,106 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
     }
 
     final project = widget.project;
-    final images = List<XFile>.of(_progressImages);
-    setState(() {
-      _isUploadingProgressImages = true;
-      _uploadedImageCount = 0;
-    });
+    setState(() => _isUploadingEvidence = true);
 
     try {
-      for (final image in images) {
-        await _dashboardService.uploadProjectDocument(
-          token: token,
-          projectId: project.id,
-          file: image,
-          name: 'Progress update: ${project.title}',
-          description: 'Progress photo for ${project.title}',
-        );
-        if (!mounted) return;
-        setState(() {
-          _progressImages.removeWhere(
-            (selected) => selected.path == image.path,
-          );
-          _uploadedImageCount++;
-        });
-      }
-      if (mounted) {
-        _showMessage(
-          'Uploaded ${images.length} progress '
-          '${images.length == 1 ? 'photo' : 'photos'}.',
-        );
-      }
+      await _dashboardService.uploadProjectDocument(
+        token: token,
+        projectId: project.id,
+        file: evidence.file,
+        name: _truncate('Progress ${evidence.label}: ${project.title}', 255),
+        description: _truncate(
+          'Progress ${evidence.label} for ${project.title}',
+          500,
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _pendingEvidence = null);
+      _showMessage('Progress ${evidence.label} uploaded.');
     } on ApiException catch (error) {
       if (mounted) _showMessage(error.message);
     } finally {
-      if (mounted) {
-        setState(() => _isUploadingProgressImages = false);
-      }
+      if (mounted) setState(() => _isUploadingEvidence = false);
     }
+  }
+
+  static String _truncate(String value, int maxLength) =>
+      value.length <= maxLength ? value : value.substring(0, maxLength);
+
+  Widget _buildEvidencePreview(EvidenceItem evidence) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const tileSize = 76.0;
+
+    final Widget tile;
+    switch (evidence.type) {
+      case EvidenceType.photo:
+        tile = Image.file(
+          File(evidence.file.path),
+          width: tileSize,
+          height: tileSize,
+          fit: BoxFit.cover,
+        );
+      case EvidenceType.video:
+        tile = Container(
+          width: tileSize,
+          height: tileSize,
+          color: Colors.black87,
+          child: const Icon(
+            Icons.play_circle_outline,
+            color: Colors.white,
+            size: 36,
+          ),
+        );
+      case EvidenceType.document:
+        tile = Container(
+          width: tileSize,
+          height: tileSize,
+          color: colorScheme.surfaceContainerHighest,
+          child: Icon(
+            evidence.isPdf
+                ? Icons.picture_as_pdf_outlined
+                : Icons.description_outlined,
+            color: colorScheme.onSurfaceVariant,
+            size: 36,
+          ),
+        );
+    }
+
+    return Row(
+      children: [
+        ClipRRect(borderRadius: BorderRadius.circular(10), child: tile),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                evidence.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${evidence.label[0].toUpperCase()}${evidence.label.substring(1)}'
+                ' • ${evidence.formattedSize}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Remove ${evidence.label}',
+          onPressed: _isUploadingEvidence
+              ? null
+              : () => setState(() => _pendingEvidence = null),
+          icon: const Icon(Icons.close),
+        ),
+      ],
+    );
   }
 
   void _showMessage(String message) {
@@ -404,7 +512,7 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: _isUploadingProgressImages
+                      onPressed: _isUploadingEvidence
                           ? null
                           : _onLogProgressPressed,
                       icon: const Icon(Icons.edit_note_outlined, size: 16),
@@ -423,60 +531,17 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
                   ),
                 ],
               ),
-              if (_progressImages.isNotEmpty) ...[
+              if (_pendingEvidence case final evidence?) ...[
                 const SizedBox(height: 12),
-                SizedBox(
-                  height: 76,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _progressImages.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) => Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(
-                            File(_progressImages[index].path),
-                            width: 76,
-                            height: 76,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Positioned(
-                          top: 0,
-                          right: 0,
-                          child: IconButton(
-                            tooltip: 'Remove image',
-                            onPressed: _isUploadingProgressImages
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _progressImages.removeAt(index);
-                                    });
-                                  },
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.black54,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(28, 28),
-                              maximumSize: const Size(28, 28),
-                              padding: EdgeInsets.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            icon: const Icon(Icons.close, size: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _buildEvidencePreview(evidence),
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isUploadingProgressImages
+                    onPressed: _isUploadingEvidence
                         ? null
-                        : _uploadProgressImages,
-                    icon: _isUploadingProgressImages
+                        : _uploadProgressEvidence,
+                    icon: _isUploadingEvidence
                         ? const SizedBox(
                             width: 16,
                             height: 16,
@@ -484,11 +549,9 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
                           )
                         : const Icon(Icons.cloud_upload_outlined, size: 18),
                     label: Text(
-                      _isUploadingProgressImages
-                          ? 'Uploading ${_uploadedImageCount + 1} of '
-                                '${_uploadedImageCount + _progressImages.length}…'
-                          : 'Upload ${_progressImages.length} '
-                                '${_progressImages.length == 1 ? 'photo' : 'photos'}',
+                      _isUploadingEvidence
+                          ? 'Uploading ${evidence.label}…'
+                          : 'Upload ${evidence.label}',
                     ),
                     style: _buttonStyle(
                       colorScheme.secondary,

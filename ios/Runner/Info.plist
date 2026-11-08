@@ -27,7 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Take project progress photos to attach to your project update.</string>
+	<string>Take project progress photos and videos to attach to your project update.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record project progress videos with sound to attach to your project update.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app uses your location to show your current district and zone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
