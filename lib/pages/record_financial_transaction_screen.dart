@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/repositories/financial_transaction_repository.dart';
 import '../core/services/api_exception.dart';
 import '../core/services/dashboard_service.dart';
+import '../core/services/local_database.dart';
 import '../core/services/session_provider.dart';
 import 'create_kpi_screen.dart';
 
@@ -35,6 +37,7 @@ class _RecordFinancialTransactionScreenState
   static const _dashboardService = DashboardService();
   static const _inputRadius = 12.0;
 
+  final _financialTransactionRepository = FinancialTransactionRepository();
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _dateController = TextEditingController();
@@ -105,35 +108,85 @@ class _RecordFinancialTransactionScreenState
     if (_isSubmitting || !_formKey.currentState!.validate()) return;
 
     final token = context.read<SessionProvider>().token;
-    if (token == null) {
-      _showMessage('You are not signed in. Please log in again.');
+    final parsedAmount = num.parse(_amountController.text.trim());
+    final transactionDate = _transactionDate!;
+    final remark = _remarkController.text.trim();
+
+    setState(() => _isSubmitting = true);
+    late final String localId;
+    try {
+      final localRecord = await _financialTransactionRepository
+          .writeFinancialTransaction(
+            projectId: widget.args.projectId,
+            objectiveId: _selectedObjectiveId,
+            amount: parsedAmount,
+            transactionDate: transactionDate,
+            remark: remark,
+          );
+      localId = localRecord.localId;
+    } on LocalDatabaseException catch (error) {
+      if (mounted) {
+        _showMessage('Unable to store this record locally. (${error.message})');
+      }
+      if (mounted) setState(() => _isSubmitting = false);
+      return;
+    } on Object catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Unable to store this record locally right now. Please try again.',
+        );
+      }
+      if (mounted) setState(() => _isSubmitting = false);
       return;
     }
 
-    setState(() => _isSubmitting = true);
     try {
+      if (token == null || token.isEmpty) {
+        throw const ApiException('Sign in before syncing this record.');
+      }
       final message = await _dashboardService.recordFinancialTransaction(
         token: token,
         projectId: widget.args.projectId,
         objectiveId: _selectedObjectiveId,
-        amount: num.parse(_amountController.text.trim()),
-        transactionDate: _isoDate(_transactionDate!),
-        remark: _remarkController.text.trim(),
+        amount: parsedAmount,
+        transactionDate: _isoDate(transactionDate),
+        remark: remark,
+      );
+      await _financialTransactionRepository.markFinancialTransactionSynced(
+        localId,
       );
       if (!mounted) return;
       _showMessage(message);
       context.pop(true);
     } on ApiException catch (error) {
-      if (mounted) _showMessage(error.message);
-    } catch (_) {
+      await _recordFailedSync(localId, error.message);
+      if (!mounted) return;
+      _showMessage(
+        '${error.message} The record is saved locally and queued for sync.',
+      );
+      context.pop(true);
+    } on Object catch (_) {
+      await _recordFailedSync(
+        localId,
+        'Unable to record the expenditure right now. Please try again.',
+      );
       if (mounted) {
         _showMessage(
-          'Unable to record the expenditure right now. Please try again.',
+          'Unable to record the expenditure right now. '
+          'It is saved locally and queued for sync.',
         );
+        context.pop(true);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  Future<void> _recordFailedSync(String localId, String message) async {
+    await _financialTransactionRepository.recordFinancialTransactionSyncFailure(
+      localId,
+      message,
+    );
   }
 
   void _showMessage(String message) {

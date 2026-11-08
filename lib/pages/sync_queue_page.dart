@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/repositories/financial_transaction_repository.dart';
 import '../core/repositories/field_log_repository.dart';
 import '../core/services/connectivity_provider.dart';
 import '../core/services/sync_service.dart';
@@ -15,6 +16,12 @@ class _QueueRecord {
     required this.project,
     required this.status,
     required this.lastAttempt,
+    this.objectiveId,
+    this.amount,
+    this.transactionDate,
+    this.remark,
+    this.kpisMet,
+    this.notes,
     this.errorReason,
   });
 
@@ -23,7 +30,15 @@ class _QueueRecord {
   final String project;
   final _QueueStatus status;
   final DateTime lastAttempt;
+  final String? objectiveId;
+  final double? amount;
+  final DateTime? transactionDate;
+  final String? remark;
+  final String? kpisMet;
+  final String? notes;
   final String? errorReason;
+
+  bool get isFinancialTransaction => amount != null;
 
   _QueueRecord copyWith({
     _QueueStatus? status,
@@ -37,6 +52,12 @@ class _QueueRecord {
       project: project,
       status: status ?? this.status,
       lastAttempt: lastAttempt ?? this.lastAttempt,
+      objectiveId: objectiveId,
+      amount: amount,
+      transactionDate: transactionDate,
+      remark: remark,
+      kpisMet: kpisMet,
+      notes: notes,
       errorReason: clearError ? null : errorReason ?? this.errorReason,
     );
   }
@@ -51,6 +72,8 @@ class SyncQueuePage extends StatefulWidget {
 
 class _SyncQueuePageState extends State<SyncQueuePage> {
   final FieldLogRepository _fieldLogRepository = FieldLogRepository();
+  final FinancialTransactionRepository _financialTransactionRepository =
+      FinancialTransactionRepository();
   List<_QueueRecord> _records = const [];
   bool _isLoading = true;
   String? _loadError;
@@ -97,22 +120,51 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
     }
     try {
       final pendingLogs = await _fieldLogRepository.getPendingFieldLogs();
+      final financialTransactions = await _financialTransactionRepository
+          .getFinancialTransactionsForQueue();
+      final fieldRecords = pendingLogs
+          .map(
+            (log) => _QueueRecord(
+              type: 'Progress report',
+              reference: log.localId,
+              project: log.projectTitle ?? 'Project ${log.projectId}',
+              status: log.lastSyncError == null
+                  ? _QueueStatus.pending
+                  : _QueueStatus.failed,
+              lastAttempt: log.lastSyncAttemptAt ?? log.timestamp,
+              kpisMet: log.kpisMet,
+              notes: log.notes,
+              errorReason: log.lastSyncError,
+            ),
+          )
+          .toList(growable: false);
+      final financialRecords = financialTransactions
+          .map(
+            (transaction) => _QueueRecord(
+              type: 'Financial transaction',
+              reference: transaction.localId,
+              project:
+                  transaction.projectTitle ??
+                  'Project ${transaction.projectId}',
+              status: transaction.isSynced
+                  ? _QueueStatus.synced
+                  : transaction.lastSyncError == null
+                  ? _QueueStatus.pending
+                  : _QueueStatus.failed,
+              lastAttempt:
+                  transaction.lastSyncAttemptAt ?? transaction.transactionDate,
+              objectiveId: transaction.objectiveId,
+              amount: transaction.amount,
+              transactionDate: transaction.transactionDate,
+              remark: transaction.remark,
+              errorReason: transaction.lastSyncError,
+            ),
+          )
+          .toList(growable: false);
       if (!mounted) return;
       setState(() {
-        _records = pendingLogs
-            .map(
-              (log) => _QueueRecord(
-                type: 'Progress report',
-                reference: log.localId,
-                project: log.projectTitle ?? 'Project ${log.projectId}',
-                status: log.lastSyncError == null
-                    ? _QueueStatus.pending
-                    : _QueueStatus.failed,
-                lastAttempt: log.lastSyncAttemptAt ?? log.timestamp,
-                errorReason: log.lastSyncError,
-              ),
-            )
-            .toList(growable: false);
+        _records = [...financialRecords, ...fieldRecords]
+          ..sort((a, b) => b.lastAttempt.compareTo(a.lastAttempt));
         _isLoading = false;
       });
     } catch (error) {
@@ -135,7 +187,12 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
       return;
     }
 
-    if (_records.isEmpty && !syncService.isSyncing) {
+    final hasPending = _records.any(
+      (record) =>
+          record.status == _QueueStatus.pending ||
+          record.status == _QueueStatus.failed,
+    );
+    if (!hasPending && !syncService.isSyncing) {
       setState(() {
         _operationError = 'There are no pending uploads to sync.';
       });
@@ -210,9 +267,44 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                 label: 'Recorded',
                 value: _timeSince(record.lastAttempt),
               ),
+              if (record.isFinancialTransaction) ...[
+                _DetailRow(
+                  label: 'Amount',
+                  value: record.amount!.toStringAsFixed(2),
+                ),
+                _DetailRow(
+                  label: 'Objective',
+                  value: record.objectiveId?.isNotEmpty == true
+                      ? record.objectiveId!
+                      : 'No objective',
+                ),
+                _DetailRow(
+                  label: 'Transaction date',
+                  value: _dateTimeLabel(record.transactionDate!),
+                ),
+                _DetailRow(label: 'Remark', value: record.remark ?? '—'),
+              ] else ...[
+                _DetailRow(label: 'KPIs met', value: record.kpisMet ?? '—'),
+                _DetailRow(label: 'Notes', value: record.notes ?? '—'),
+              ],
               if (record.errorReason != null) ...[
                 const SizedBox(height: 12),
                 _ErrorMessage(message: record.errorReason!),
+              ],
+              if (record.isFinancialTransaction &&
+                  record.status != _QueueStatus.synced) ...[
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _editFinancialRecord(record);
+                    },
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit record'),
+                  ),
+                ),
               ],
               if (record.status == _QueueStatus.failed) ...[
                 const SizedBox(height: 18),
@@ -233,6 +325,202 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
         ),
       ),
     );
+  }
+
+  Future<void> _editFinancialRecord(_QueueRecord record) async {
+    final amountController = TextEditingController(
+      text: record.amount!.toStringAsFixed(2),
+    );
+    final objectiveController = TextEditingController(
+      text: record.objectiveId ?? '',
+    );
+    final remarkController = TextEditingController(text: record.remark ?? '');
+    DateTime selectedDate = record.transactionDate ?? DateTime.now();
+    var isSaving = false;
+    String? formError;
+    final formKey = GlobalKey<FormState>();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          Future<void> pickDateTime() async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: selectedDate,
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (date == null || !context.mounted) return;
+            final time = await showTimePicker(
+              context: context,
+              initialTime: TimeOfDay.fromDateTime(selectedDate),
+            );
+            if (time == null || !context.mounted) return;
+            setModalState(() {
+              selectedDate = DateTime(
+                date.year,
+                date.month,
+                date.day,
+                time.hour,
+                time.minute,
+              );
+            });
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                24,
+                12,
+                24,
+                24 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Edit financial record',
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: amountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(labelText: 'Amount'),
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) return 'Amount is required.';
+                          final amount = num.tryParse(text);
+                          if (amount == null || amount <= 0) {
+                            return 'Enter a valid amount greater than 0.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: objectiveController,
+                        decoration: const InputDecoration(
+                          labelText: 'Objective ID (optional)',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: pickDateTime,
+                        borderRadius: BorderRadius.circular(8),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Transaction date',
+                            suffixIcon: Icon(Icons.event_outlined),
+                          ),
+                          child: Text(_dateTimeLabel(selectedDate)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: remarkController,
+                        minLines: 4,
+                        maxLines: 6,
+                        decoration: const InputDecoration(labelText: 'Remark'),
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) return 'Remark is required.';
+                          if (text.length < 10) {
+                            return 'Remark must be at least 10 characters.';
+                          }
+                          return null;
+                        },
+                      ),
+                      if (formError != null) ...[
+                        const SizedBox(height: 12),
+                        _ErrorMessage(message: formError!),
+                      ],
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: isSaving
+                              ? null
+                              : () async {
+                                  if (!formKey.currentState!.validate()) return;
+                                  setModalState(() {
+                                    isSaving = true;
+                                    formError = null;
+                                  });
+                                  try {
+                                    await _financialTransactionRepository
+                                        .updateFinancialTransaction(
+                                          localId: record.reference,
+                                          objectiveId: objectiveController.text
+                                              .trim(),
+                                          amount: num.parse(
+                                            amountController.text.trim(),
+                                          ),
+                                          transactionDate: selectedDate,
+                                          remark: remarkController.text.trim(),
+                                        );
+                                    if (!context.mounted || !mounted) return;
+                                    Navigator.of(context).pop();
+                                    await _loadQueue(showLoading: false);
+                                  } catch (error) {
+                                    setModalState(() {
+                                      formError =
+                                          'Unable to update record. ($error)';
+                                      isSaving = false;
+                                    });
+                                  }
+                                },
+                          icon: isSaving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.save_outlined),
+                          label: Text(isSaving ? 'Saving…' : 'Save changes'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    amountController.dispose();
+    objectiveController.dispose();
+    remarkController.dispose();
   }
 
   @override
@@ -966,6 +1254,13 @@ String _statusLabel(_QueueStatus status) => switch (status) {
   _QueueStatus.synced => 'Synced',
   _QueueStatus.failed => 'Failed',
 };
+
+String _dateTimeLabel(DateTime timestamp) {
+  String two(int value) => value.toString().padLeft(2, '0');
+  final local = timestamp.toLocal();
+  return '${local.year}-${two(local.month)}-${two(local.day)} '
+      '${two(local.hour)}:${two(local.minute)}';
+}
 
 String _timeSince(DateTime timestamp) {
   final elapsed = DateTime.now().difference(timestamp);

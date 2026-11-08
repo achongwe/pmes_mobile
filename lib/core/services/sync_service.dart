@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 
 import '../constants/api_constants.dart';
 import '../models/field_progress_log.dart';
+import '../models/local_financial_transaction.dart';
+import '../repositories/financial_transaction_repository.dart';
 import '../repositories/field_log_repository.dart';
 
 class SyncUploadException implements Exception {
@@ -25,14 +27,20 @@ class SyncUploadException implements Exception {
 }
 
 class SyncService extends ChangeNotifier {
-  SyncService({required this.repository, http.Client? client})
-    : _client = client ?? http.Client(),
+  SyncService({
+    required this.repository,
+    FinancialTransactionRepository? financialTransactionRepository,
+    http.Client? client,
+  }) : financialTransactionRepository =
+           financialTransactionRepository ?? FinancialTransactionRepository(),
+       _client = client ?? http.Client(),
       _ownsClient = client == null;
 
   static const Duration _requestTimeout = Duration(seconds: 30);
   static const int _batchSize = 100;
 
   final FieldLogRepository repository;
+  final FinancialTransactionRepository financialTransactionRepository;
   final http.Client _client;
   final bool _ownsClient;
 
@@ -94,7 +102,9 @@ class SyncService extends ChangeNotifier {
 
     try {
       final pendingLogs = await repository.getPendingFieldLogs();
-      _totalCount = pendingLogs.length;
+      final pendingTransactions = await financialTransactionRepository
+          .getPendingFinancialTransactions();
+      _totalCount = pendingLogs.length + pendingTransactions.length;
       notifyListeners();
 
       for (var start = 0; start < pendingLogs.length; start += _batchSize) {
@@ -153,6 +163,59 @@ class SyncService extends ChangeNotifier {
           notifyListeners();
         }
         if (stopAfterBatch) break;
+      }
+
+      if (_lastError == null || pendingTransactions.isNotEmpty) {
+        for (final transaction in pendingTransactions) {
+          if (!_isOnline) {
+            _lastError = 'Connection lost. Remaining records are still queued.';
+            break;
+          }
+          if (_token != token) {
+            _lastError =
+                'Your session changed. Sign in again before syncing remaining records.';
+            break;
+          }
+
+          _currentLocalId = transaction.localId;
+          notifyListeners();
+
+          var stopAfterRecord = false;
+          try {
+            await financialTransactionRepository
+                .recordFinancialTransactionSyncAttempt(transaction.localId);
+            await _uploadFinancialTransaction(transaction, token);
+            await financialTransactionRepository.markFinancialTransactionSynced(
+              transaction.localId,
+            );
+            _completedCount++;
+          } on Object catch (error) {
+            final message = _errorMessage(error);
+            try {
+              await financialTransactionRepository
+                  .recordFinancialTransactionSyncFailure(
+                    transaction.localId,
+                    message,
+                  );
+              _failedCount++;
+              _lastError ??= message;
+            } on Object catch (storageError) {
+              _lastError =
+                  'Unable to save the sync result for ${transaction.localId}: '
+                  '${_errorMessage(storageError)}';
+              debugPrint(
+                'Unable to save sync result for '
+                '${transaction.localId}: $storageError',
+              );
+              stopAfterRecord = true;
+            }
+            if (error is SyncUploadException && error.isTransient) {
+              stopAfterRecord = true;
+            }
+          }
+          notifyListeners();
+          if (stopAfterRecord) break;
+        }
       }
     } on Object catch (error) {
       _lastError =
@@ -274,6 +337,63 @@ class SyncService extends ChangeNotifier {
       }
     }
     return outcomes;
+  }
+
+  Future<void> _uploadFinancialTransaction(
+    LocalFinancialTransaction transaction,
+    String token,
+  ) async {
+    late final http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse(
+              ApiConstants.projectFinancialTransactions(transaction.projectId),
+            ),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': '******',
+            },
+            body: jsonEncode({
+              'objective_id': transaction.objectiveId,
+              'amount': transaction.amount,
+              'transaction_date': transaction.transactionDate
+                  .toUtc()
+                  .toIso8601String(),
+              'remark': transaction.remark,
+            }),
+          )
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const SyncUploadException(
+        'The server took too long to respond. The records will retry.',
+        isTransient: true,
+      );
+    } on SocketException {
+      throw const SyncUploadException(
+        'Unable to reach the server. The records will retry.',
+        isTransient: true,
+      );
+    } on http.ClientException {
+      throw const SyncUploadException(
+        'Unable to reach the server. The records will retry.',
+        isTransient: true,
+      );
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return;
+    }
+
+    throw SyncUploadException(
+      _responseMessage(response),
+      statusCode: response.statusCode,
+      isTransient:
+          response.statusCode == 408 ||
+          response.statusCode == 429 ||
+          response.statusCode >= 500,
+    );
   }
 
   String _responseMessage(http.Response response) {
