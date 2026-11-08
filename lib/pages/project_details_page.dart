@@ -38,18 +38,28 @@ class ProjectDetailsPage extends StatelessWidget {
         foregroundColor: colorScheme.onPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text(
-          'Project Details',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: _SyncBadge(lastSynced: _text(project.stats.lastSynced)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (project.contractRef.trim().isNotEmpty)
+              Text(
+                project.contractRef.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            Text(
+              'Project Details',
+              style: TextStyle(
+                fontWeight: project.contractRef.trim().isEmpty
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+                fontSize: project.contractRef.trim().isEmpty ? null : 13,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -59,53 +69,33 @@ class ProjectDetailsPage extends StatelessWidget {
             contractRef: _text(project.contractRef),
             publication: _text(project.status.publication),
             progress: _text(project.status.progress),
-            department: displayText(raw['department'], fallback: 'No department'),
+            department: displayText(
+              raw['department'],
+              fallback: 'No department',
+            ),
           ),
           const SizedBox(height: 12),
           IntrinsicHeight(
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.payments_outlined,
-                  label: 'Approved Budget',
-                  value: _text(project.stats.approvedBudget),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _MetricCard(
+                    icon: Icons.payments_outlined,
+                    label: 'Approved Budget',
+                    value: _text(project.stats.approvedBudget),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.verified_outlined,
-                  label: 'KPIs Met',
-                  value: _text(project.stats.kpisMet),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MetricCard(
+                    icon: Icons.verified_outlined,
+                    label: 'KPIs Met',
+                    value: _text(project.stats.kpisMet),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          ),
-          const SizedBox(height: 12),
-          IntrinsicHeight(
-            child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.flag_outlined,
-                  label: 'Published KPIs',
-                  value: _text(summary.publishedKpiCount),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.task_alt,
-                  label: 'Achieved KPIs',
-                  value: _text(summary.achievedKpiCount),
-                ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           _SectionCard(
@@ -128,9 +118,8 @@ class ProjectDetailsPage extends StatelessWidget {
                   const SizedBox(width: 12),
                   Text(
                     _percent(milestone),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -143,9 +132,6 @@ class ProjectDetailsPage extends StatelessWidget {
             title: 'Overview',
             icon: Icons.description_outlined,
             children: [
-              _InfoRow(label: 'Project ID', value: _text(project.id)),
-              _InfoRow(label: 'Section', value: _text(project.section)),
-              _InfoRow(label: 'Activity', value: _text(project.activity)),
               _InfoRow(
                 label: 'Description',
                 value: displayText(raw['description']),
@@ -164,6 +150,8 @@ class ProjectDetailsPage extends StatelessWidget {
               StatusChecklist(
                 value: raw['objectives'],
                 emptyMessage: 'No objectives recorded.',
+                showIcon: false,
+                hiddenKeys: const {'project_id'},
               ),
             ],
           ),
@@ -173,17 +161,20 @@ class ProjectDetailsPage extends StatelessWidget {
             icon: Icons.place_outlined,
             children: [
               _InfoRow(label: 'Location', value: _text(location.name)),
-              _InfoRow(label: 'Districts', value: displayText(raw['districts'])),
+              _InfoRow(
+                label: 'Districts',
+                value: displayText(raw['districts']),
+              ),
               _InfoRow(label: 'Latitude', value: _text(location.latitude)),
               _InfoRow(label: 'Longitude', value: _text(location.longitude)),
               _InfoRow(
-                label: 'Accuracy',
-                value: location.accuracy == null
-                    ? '—'
-                    : '±${location.accuracy} m',
+                label: 'Start date',
+                value: formatLongDate(displayText(raw['start_date'])),
               ),
-              _InfoRow(label: 'Start date', value: displayText(raw['start_date'])),
-              _InfoRow(label: 'End date', value: displayText(raw['end_date'])),
+              _InfoRow(
+                label: 'End date',
+                value: formatLongDate(displayText(raw['end_date'])),
+              ),
               _InfoRow(label: 'Duration', value: displayText(raw['duration'])),
             ],
           ),
@@ -203,11 +194,11 @@ class ProjectDetailsPage extends StatelessWidget {
               _InfoRow(label: 'Budgets', value: displayText(raw['budgets'])),
               _InfoRow(
                 label: 'Total budget',
-                value: _text(summary.totalBudget),
+                value: groupThousands(_text(summary.totalBudget)),
               ),
               _InfoRow(
                 label: 'Total expenses',
-                value: summary.totalExpenses.toString(),
+                value: groupThousands(summary.totalExpenses.toString()),
               ),
               _InfoRow(
                 label: 'Budget utilization',
@@ -231,9 +222,9 @@ class ProjectDetailsPage extends StatelessWidget {
             title: 'KPIs',
             icon: Icons.verified_outlined,
             children: [
-              StatusChecklist(
+              KpiChecklist(
                 value: raw['kpis'],
-                emptyMessage: 'No KPIs recorded.',
+                objectives: raw['objectives'],
               ),
             ],
           ),
@@ -258,47 +249,6 @@ class ProjectDetailsPage extends StatelessWidget {
                 emptyMessage: 'No documents uploaded.',
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SyncBadge extends StatelessWidget {
-  const _SyncBadge({required this.lastSynced});
-
-  final String lastSynced;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.sync,
-            size: 14,
-            color: colorScheme.onSecondaryContainer,
-          ),
-          const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 110),
-            child: Text(
-              lastSynced,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSecondaryContainer,
-              ),
-            ),
           ),
         ],
       ),
@@ -475,10 +425,7 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
         ],
       ),

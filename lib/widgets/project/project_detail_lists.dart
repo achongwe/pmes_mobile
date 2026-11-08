@@ -153,9 +153,8 @@ class _RecordCard extends StatelessWidget {
       child: record.extras.isEmpty
           ? Padding(padding: const EdgeInsets.all(12), child: header)
           : Theme(
-              data: Theme.of(
-                context,
-              ).copyWith(dividerColor: Colors.transparent),
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 tilePadding: const EdgeInsets.all(12),
                 childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -174,16 +173,20 @@ class _RecordList extends StatelessWidget {
     required this.emptyMessage,
     required this.itemBuilder,
     this.maxHeight,
+    this.recordBuilder,
   });
 
   final Object? value;
   final String emptyMessage;
   final Widget Function(BuildContext, DetailRecord) itemBuilder;
   final double? maxHeight;
+  final DetailRecord Function(Object?)? recordBuilder;
 
   @override
   Widget build(BuildContext context) {
-    final records = detailItems(value).map(DetailRecord.from).toList();
+    final records = detailItems(value)
+        .map((item) => recordBuilder?.call(item) ?? DetailRecord.from(item))
+        .toList();
     if (records.isEmpty) return _EmptyNote(emptyMessage);
 
     final list = ListView.separated(
@@ -258,11 +261,17 @@ class FinancialTransactionsList extends StatelessWidget {
       value: value,
       emptyMessage: 'No financial transactions recorded.',
       maxHeight: 360,
+      recordBuilder: (item) => DetailRecord.from(
+        item,
+        hiddenKeys: const {'project_id', 'user_id'},
+      ),
       itemBuilder: (context, record) {
         final credit = _isCredit(record.type ?? record.status);
         final amountText = record.amount == null
             ? null
-            : formatAmount(record.amount!) ?? record.amount!;
+            : formatCompactAmount(record.amount!) ??
+                  formatAmount(record.amount!) ??
+                  record.amount!;
         final currency = record.currency ?? defaultCurrency;
         final label = record.type ?? record.status;
         final color = credit == null
@@ -336,11 +345,15 @@ class StatusChecklist extends StatelessWidget {
   const StatusChecklist({
     required this.value,
     required this.emptyMessage,
+    this.showIcon = true,
+    this.hiddenKeys = const {},
     super.key,
   });
 
   final Object? value;
   final String emptyMessage;
+  final bool showIcon;
+  final Set<String> hiddenKeys;
 
   @override
   Widget build(BuildContext context) {
@@ -348,9 +361,97 @@ class StatusChecklist extends StatelessWidget {
     return _RecordList(
       value: value,
       emptyMessage: emptyMessage,
+      recordBuilder: (item) => DetailRecord.from(item, hiddenKeys: hiddenKeys),
       itemBuilder: (context, record) => _RecordCard(
         record: record,
-        leading: _statusIcon(context, record.done),
+        leading: showIcon ? _statusIcon(context, record.done) : null,
+        trailing: _statusBadge(
+          context,
+          record.status ?? record.type,
+          record.done,
+        ),
+        body: record.amount == null && record.percent == null
+            ? null
+            : Text(
+                [
+                  if (record.amount != null) record.amount!,
+                  if (record.percent != null) '${record.percent!.round()}%',
+                ].join(' • '),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.secondary,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class KpiChecklist extends StatelessWidget {
+  const KpiChecklist({
+    required this.value,
+    required this.objectives,
+    this.emptyMessage = 'No KPIs recorded.',
+    super.key,
+  });
+
+  final Object? value;
+  final Object? objectives;
+  final String emptyMessage;
+
+  Map<String, String> _objectiveNamesById(Object? rawObjectives) {
+    final names = <String, String>{};
+    for (final item in detailItems(rawObjectives)) {
+      if (item is! Map) continue;
+      final id = item['id']?.toString().trim();
+      if (id == null || id.isEmpty) continue;
+      final name = displayText(
+        item['objective'] ?? item['name'] ?? item['title'],
+        fallback: '',
+      );
+      if (name.trim().isNotEmpty) {
+        names[id] = name;
+      }
+    }
+    return names;
+  }
+
+  DetailRecord _buildKpiRecord(
+    Object? item,
+    Map<String, String> objectiveNamesById,
+  ) {
+    if (item is! Map) {
+      return DetailRecord.from(
+        item,
+        hiddenKeys: const {'project_id', 'project_objective_id', 'objective_id'},
+      );
+    }
+
+    final map = Map<String, dynamic>.from(item);
+    final objectiveId = map['project_objective_id'] ?? map['objective_id'];
+    final existingObjective = map['project_objective'];
+    if ((existingObjective == null || existingObjective.toString().trim().isEmpty) &&
+        objectiveId != null) {
+      map['project_objective'] = objectiveNamesById[objectiveId.toString()];
+    }
+
+    return DetailRecord.from(
+      map,
+      hiddenKeys: const {'project_id', 'project_objective_id', 'objective_id'},
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final objectiveNamesById = _objectiveNamesById(objectives);
+    return _RecordList(
+      value: value,
+      emptyMessage: emptyMessage,
+      recordBuilder: (item) => _buildKpiRecord(item, objectiveNamesById),
+      itemBuilder: (context, record) => _RecordCard(
+        record: record,
         trailing: _statusBadge(
           context,
           record.status ?? record.type,

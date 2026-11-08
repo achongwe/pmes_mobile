@@ -41,6 +41,8 @@ class DetailRecord {
   const DetailRecord({
     required this.title,
     this.subtitle,
+    this.projectObjective,
+    this.user,
     this.status,
     this.type,
     this.amount,
@@ -53,6 +55,8 @@ class DetailRecord {
 
   final String title;
   final String? subtitle;
+  final String? projectObjective;
+  final String? user;
   final String? status;
   final String? type;
   final String? amount;
@@ -104,6 +108,7 @@ class DetailRecord {
     'target_date',
     'end_date',
     'created_at',
+    'updated_at',
   ];
   static const _percentKeys = [
     'progress',
@@ -160,11 +165,11 @@ class DetailRecord {
     return spaced[0].toUpperCase() + spaced.substring(1);
   }
 
-  factory DetailRecord.from(Object? item) {
+  factory DetailRecord.from(Object? item, {Set<String> hiddenKeys = const {}}) {
     if (item is! Map) {
       return DetailRecord(title: _scalar(item) ?? '—');
     }
-    final used = <String>{'id'};
+    final used = <String>{'id', ...hiddenKeys};
 
     String? pick(List<String> keys, {String? exclude}) {
       for (final key in keys) {
@@ -189,6 +194,8 @@ class DetailRecord {
 
     final title = pick(_titleKeys);
     final subtitle = pick(_subtitleKeys, exclude: title);
+    final projectObjective = pick(const ['project_objective'], exclude: title);
+    final user = pick(const ['user'], exclude: title);
     final status = pick(_statusKeys);
     final type = pick(_typeKeys);
     final amount = pick(_amountKeys);
@@ -208,9 +215,20 @@ class DetailRecord {
       if (text != null) extras[humanize(k)] = text;
     });
 
+    final subtitleParts = <String>[
+      if (projectObjective != null && projectObjective != subtitle)
+        projectObjective,
+      if (user != null && user != subtitle && user != projectObjective) user,
+      if (subtitle != null) subtitle,
+    ];
+
     return DetailRecord(
       title: title ?? subtitle ?? '—',
-      subtitle: title == null ? null : subtitle,
+      subtitle: title == null || subtitleParts.isEmpty
+          ? null
+          : subtitleParts.join(' • '),
+      projectObjective: projectObjective,
+      user: user,
       status: status,
       type: type,
       amount: amount,
@@ -234,6 +252,76 @@ String? formatAmount(String value) {
     (_) => ',',
   );
   return '$whole.${parts[1]}';
+}
+
+/// Formats numeric values as compact units (`1.2K`, `3M`, `4.5B`, `1T`).
+/// Returns null when [value] isn't numeric.
+String? formatCompactAmount(String value) {
+  final number = num.tryParse(value.replaceAll(RegExp(r'[,\s]'), ''));
+  if (number == null) return null;
+
+  final abs = number.abs();
+  if (abs < 1000) return groupThousands(number.toString());
+
+  const units = [
+    (1000000000000, 'T'),
+    (1000000000, 'B'),
+    (1000000, 'M'),
+    (1000, 'K'),
+  ];
+
+  for (final unit in units) {
+    final divisor = unit.$1;
+    final suffix = unit.$2;
+    if (abs >= divisor) {
+      final compact = number / divisor;
+      final rounded = compact.toStringAsFixed(1);
+      final normalized = rounded.endsWith('.0')
+          ? rounded.substring(0, rounded.length - 2)
+          : rounded;
+      return '$normalized$suffix';
+    }
+  }
+
+  return groupThousands(number.toString());
+}
+
+/// Adds thousands separators to every number in [value] (`MWK 1000` ->
+/// `MWK 1,000`), leaving decimals and the rest of the text untouched.
+String groupThousands(String value) {
+  return value.replaceAllMapped(RegExp(r'\d+(\.\d+)?'), (match) {
+    final number = match[0]!;
+    final dot = number.indexOf('.');
+    final whole = dot == -1 ? number : number.substring(0, dot);
+    final grouped = whole.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return dot == -1 ? grouped : '$grouped${number.substring(dot)}';
+  });
+}
+
+const _monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/// Formats a date value as `5 January 2026`; returns [value] unchanged when it
+/// isn't a parseable date.
+String formatLongDate(String value) {
+  final date = DateTime.tryParse(value.trim());
+  if (date == null) return value;
+  return '${date.day} ${_monthNames[date.month - 1]} ${date.year}';
 }
 
 const _labelKeys = [

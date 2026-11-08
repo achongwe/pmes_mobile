@@ -3,7 +3,7 @@ class ApiConstants {
   ApiConstants._();
 
   static const String baseUrl =
-      'https://0cae-105-234-179-228.ngrok-free.app/api/v1';
+      'https://a821-137-115-10-233.ngrok-free.app/api/v1';
 
   static const String login = '$baseUrl/login';
 

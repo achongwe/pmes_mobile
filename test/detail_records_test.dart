@@ -28,13 +28,19 @@ void main() {
     final record = DetailRecord.from({
       'id': 1,
       'name': 'Foundation',
+      'project_objective': 'Improve road access',
+      'user': 'John Banda',
       'status': 'Completed',
       'progress': '80%',
       'remark': 'Poured',
+      'created_at': '2 hours ago',
       'supplier': 'ACME',
     });
     expect(record.title, 'Foundation');
-    expect(record.subtitle, 'Poured');
+    expect(record.subtitle, 'Improve road access • John Banda • Poured');
+    expect(record.projectObjective, 'Improve road access');
+    expect(record.user, 'John Banda');
+    expect(record.date, '2 hours ago');
     expect(record.done, isTrue);
     expect(record.percent, 80);
     expect(record.extras, {'Supplier': 'ACME'});
@@ -43,6 +49,23 @@ void main() {
   test('formats amounts with thousands separators', () {
     expect(formatAmount('1234567.5'), '1,234,567.50');
     expect(formatAmount('abc'), isNull);
+  });
+
+  test('formats amounts with compact units up to trillions', () {
+    expect(formatCompactAmount('1000'), '1K');
+    expect(formatCompactAmount('1000000'), '1M');
+    expect(formatCompactAmount('2500000000000'), '2.5T');
+    expect(formatCompactAmount('999'), '999');
+    expect(formatCompactAmount('abc'), isNull);
+  });
+
+  test('can hide technical ID fields from extras', () {
+    final record = DetailRecord.from(
+      {'name': 'KPI A', 'project_id': 'project-1', 'project_objective_id': 12},
+      hiddenKeys: const {'project_id', 'project_objective_id'},
+    );
+    expect(record.extras.containsKey('Project id'), isFalse);
+    expect(record.extras.containsKey('Project objective id'), isFalse);
   });
 
   test('displayText extracts clean labels from complex values', () {
