@@ -64,9 +64,12 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
   final _baselineController = TextEditingController();
   final _targetController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _achievedValueController = TextEditingController();
+  final _reportingDateController = TextEditingController();
   String? _selectedObjectiveId;
   String _aggregationMethod = _aggregationMethods.first;
   String _reportingPeriod = _reportingPeriods.first;
+  DateTime? _reportingDate;
   bool _isSubmitting = false;
 
   @override
@@ -83,11 +86,13 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
       _baselineController.text = kpi.baselineValue;
       _targetController.text = kpi.targetValue;
       _descriptionController.text = kpi.description;
+      _achievedValueController.text = kpi.achievedValue ?? '';
       _aggregationMethod = _matchOption(
         _aggregationMethods,
         kpi.aggregationMethod,
       );
       _reportingPeriod = _matchOption(_reportingPeriods, kpi.reportingPeriod);
+      _setReportingDate(DateTime.now());
     } else if (options.length == 1) {
       _selectedObjectiveId = options.first.id;
     }
@@ -103,12 +108,53 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
 
   bool get _isEditing => widget.args.kpi != null;
 
+  static String _two(int value) => value.toString().padLeft(2, '0');
+
+  static String _displayDate(DateTime value) =>
+      '${value.year}-${_two(value.month)}-${_two(value.day)} '
+      '${_two(value.hour)}:${_two(value.minute)}';
+
+  static String _isoDate(DateTime value) {
+    final utc = value.toUtc();
+    return '${utc.year.toString().padLeft(4, '0')}-${_two(utc.month)}-'
+        '${_two(utc.day)}T${_two(utc.hour)}:${_two(utc.minute)}:'
+        '${_two(utc.second)}Z';
+  }
+
+  void _setReportingDate(DateTime value) {
+    _reportingDate = value;
+    _reportingDateController.text = _displayDate(value);
+  }
+
+  Future<void> _pickReportingDate() async {
+    final current = _reportingDate ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current),
+    );
+    if (time == null || !mounted) return;
+    setState(() {
+      _setReportingDate(
+        DateTime(date.year, date.month, date.day, time.hour, time.minute),
+      );
+    });
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _baselineController.dispose();
     _targetController.dispose();
     _descriptionController.dispose();
+    _achievedValueController.dispose();
+    _reportingDateController.dispose();
     super.dispose();
   }
 
@@ -145,16 +191,13 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
       final existing = widget.args.kpi;
       final String message;
       if (existing != null) {
-        message = await _dashboardService.updateKpi(
+        final achievedValue = _parseNumber(_achievedValueController.text)!;
+        final reportingDate = _reportingDate!;
+        message = await _dashboardService.recordKpiMonitoringData(
           token: token,
           kpiId: existing.id,
-          objectiveId: _selectedObjectiveId,
-          name: name,
-          baselineValue: baseline,
-          targetValue: target,
-          aggregationMethod: _aggregationMethod,
-          reportingPeriod: _reportingPeriod,
-          description: description,
+          achievedValue: achievedValue,
+          reportingDate: _isoDate(reportingDate),
         );
       } else {
         message = await _dashboardService.createProjectKpi(
@@ -174,14 +217,7 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
       if (existing != null) {
         context.pop(
           existing.copyWith(
-            name: name,
-            objectiveId: _selectedObjectiveId,
-            clearObjective: _selectedObjectiveId == null,
-            baselineValue: baseline.toString(),
-            targetValue: target.toString(),
-            aggregationMethod: _aggregationMethod,
-            reportingPeriod: _reportingPeriod,
-            description: description,
+            achievedValue: _achievedValueController.text.trim(),
           ),
         );
       } else {
@@ -193,7 +229,7 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
       if (mounted) {
         _showMessage(
           _isEditing
-              ? 'Unable to update the KPI right now. Please try again.'
+              ? 'Unable to record KPI monitoring data right now. Please try again.'
               : 'Unable to create the KPI right now. Please try again.',
         );
       }
@@ -240,142 +276,191 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DropdownButtonFormField<String?>(
-                      initialValue: _selectedObjectiveId,
-                      isExpanded: true,
-                      decoration: _inputDecoration(
-                        colorScheme,
-                        labelText: 'Objective (optional)',
-                      ),
-                      selectedItemBuilder: (context) => [
-                        const Text('No objective'),
-                        ...widget.args.objectives.map(
-                          (objective) => Text(
-                            objective.label,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                    if (_isEditing) ...[
+                      Text(
+                        widget.args.kpi!.name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                      items: [
-                        for (var i = 0; i <= widget.args.objectives.length; i++)
-                          DropdownMenuItem<String?>(
-                            value: i == 0
-                                ? null
-                                : widget.args.objectives[i - 1].id,
-                            child: Container(
-                              width: double.infinity,
-                              constraints: const BoxConstraints(
-                                minHeight: kMinInteractiveDimension,
-                              ),
-                              alignment: Alignment.centerLeft,
-                              decoration: BoxDecoration(
-                                border: i == widget.args.objectives.length
-                                    ? null
-                                    : Border(
-                                        bottom: BorderSide(
-                                          color: colorScheme.outlineVariant,
-                                        ),
-                                      ),
-                              ),
-                              child: Text(
-                                i == 0
-                                    ? 'No objective'
-                                    : widget.args.objectives[i - 1].label,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Baseline ${widget.args.kpi!.baselineValue} • '
+                        'Target ${widget.args.kpi!.targetValue}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _numberField(
+                        colorScheme,
+                        controller: _achievedValueController,
+                        label: 'Achieved value',
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _reportingDateController,
+                        enabled: !_isSubmitting,
+                        readOnly: true,
+                        onTap: _isSubmitting ? null : _pickReportingDate,
+                        decoration: _inputDecoration(
+                          colorScheme,
+                          labelText: 'Reporting date',
+                        ).copyWith(
+                          suffixIcon: const Icon(Icons.calendar_today_outlined),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Reporting date is required.';
+                          }
+                          return null;
+                        },
+                      ),
+                    ] else ...[
+                      DropdownButtonFormField<String?>(
+                        initialValue: _selectedObjectiveId,
+                        isExpanded: true,
+                        decoration: _inputDecoration(
+                          colorScheme,
+                          labelText: 'Objective (optional)',
+                        ),
+                        selectedItemBuilder: (context) => [
+                          const Text('No objective'),
+                          ...widget.args.objectives.map(
+                            (objective) => Text(
+                              objective.label,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                      ],
-                      onChanged: _isSubmitting
-                          ? null
-                          : (value) {
-                              setState(() => _selectedObjectiveId = value);
-                            },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _nameController,
-                      enabled: !_isSubmitting,
-                      maxLength: 500,
-                      textInputAction: TextInputAction.next,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: _inputDecoration(
-                        colorScheme,
-                        labelText: 'Name',
+                        ],
+                        items: [
+                          for (
+                            var i = 0;
+                            i <= widget.args.objectives.length;
+                            i++
+                          )
+                            DropdownMenuItem<String?>(
+                              value: i == 0
+                                  ? null
+                                  : widget.args.objectives[i - 1].id,
+                              child: Container(
+                                width: double.infinity,
+                                constraints: const BoxConstraints(
+                                  minHeight: kMinInteractiveDimension,
+                                ),
+                                alignment: Alignment.centerLeft,
+                                decoration: BoxDecoration(
+                                  border: i == widget.args.objectives.length
+                                      ? null
+                                      : Border(
+                                          bottom: BorderSide(
+                                            color: colorScheme.outlineVariant,
+                                          ),
+                                        ),
+                                ),
+                                child: Text(
+                                  i == 0
+                                      ? 'No objective'
+                                      : widget.args.objectives[i - 1].label,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                        ],
+                        onChanged: _isSubmitting
+                            ? null
+                            : (value) {
+                                setState(() => _selectedObjectiveId = value);
+                              },
                       ),
-                      validator: (value) {
-                        final text = value?.trim() ?? '';
-                        if (text.isEmpty) return 'Name is required.';
-                        if (text.length < 5) {
-                          return 'Name must be at least 5 characters.';
-                        }
-                        if (text.length > 500) {
-                          return 'Name must be 500 characters or fewer.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _numberField(
-                            colorScheme,
-                            controller: _baselineController,
-                            label: 'Baseline value',
-                          ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _nameController,
+                        enabled: !_isSubmitting,
+                        maxLength: 500,
+                        textInputAction: TextInputAction.next,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: _inputDecoration(
+                          colorScheme,
+                          labelText: 'Name',
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _numberField(
-                            colorScheme,
-                            controller: _targetController,
-                            label: 'Target value',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _dropdown(
-                      colorScheme,
-                      label: 'Aggregation method',
-                      value: _aggregationMethod,
-                      options: _aggregationMethods,
-                      onChanged: (value) =>
-                          setState(() => _aggregationMethod = value),
-                    ),
-                    const SizedBox(height: 16),
-                    _dropdown(
-                      colorScheme,
-                      label: 'Reporting period',
-                      value: _reportingPeriod,
-                      options: _reportingPeriods,
-                      onChanged: (value) =>
-                          setState(() => _reportingPeriod = value),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _descriptionController,
-                      enabled: !_isSubmitting,
-                      minLines: 4,
-                      maxLines: 6,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: _inputDecoration(
-                        colorScheme,
-                        labelText: 'Description',
-                        alignLabelWithHint: true,
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) return 'Name is required.';
+                          if (text.length < 5) {
+                            return 'Name must be at least 5 characters.';
+                          }
+                          if (text.length > 500) {
+                            return 'Name must be 500 characters or fewer.';
+                          }
+                          return null;
+                        },
                       ),
-                      validator: (value) {
-                        final text = value?.trim() ?? '';
-                        if (text.isEmpty) return 'Description is required.';
-                        if (text.length < 10) {
-                          return 'Description must be at least 10 characters.';
-                        }
-                        return null;
-                      },
-                    ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _numberField(
+                              colorScheme,
+                              controller: _baselineController,
+                              label: 'Baseline value',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _numberField(
+                              colorScheme,
+                              controller: _targetController,
+                              label: 'Target value',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _dropdown(
+                        colorScheme,
+                        label: 'Aggregation method',
+                        value: _aggregationMethod,
+                        options: _aggregationMethods,
+                        onChanged: (value) =>
+                            setState(() => _aggregationMethod = value),
+                      ),
+                      const SizedBox(height: 16),
+                      _dropdown(
+                        colorScheme,
+                        label: 'Reporting period',
+                        value: _reportingPeriod,
+                        options: _reportingPeriods,
+                        onChanged: (value) =>
+                            setState(() => _reportingPeriod = value),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _descriptionController,
+                        enabled: !_isSubmitting,
+                        minLines: 4,
+                        maxLines: 6,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: _inputDecoration(
+                          colorScheme,
+                          labelText: 'Description',
+                          alignLabelWithHint: true,
+                        ),
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) return 'Description is required.';
+                          if (text.length < 10) {
+                            return 'Description must be at least 10 characters.';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -404,8 +489,8 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
                       : const Icon(Icons.check_circle_outline),
                   label: Text(
                     _isSubmitting
-                        ? (_isEditing ? 'Saving…' : 'Creating…')
-                        : (_isEditing ? 'Save KPI' : 'Create KPI'),
+                        ? (_isEditing ? 'Recording…' : 'Creating…')
+                        : (_isEditing ? 'Record KPI' : 'Create KPI'),
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,

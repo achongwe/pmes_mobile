@@ -28,6 +28,7 @@ class ApiConstants {
       '$baseUrl/projects/$projectId/kpis';
 
   static String kpi(String kpiId) => '$baseUrl/kpis/$kpiId';
+  static String kpiData(String kpiId) => '$baseUrl/kpis/$kpiId/kpi-data';
 
   static String projectFinancialTransactions(String projectId) =>
       '$baseUrl/projects/$projectId/financial-transactions';

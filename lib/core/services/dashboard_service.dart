@@ -187,6 +187,26 @@ class DashboardService {
     );
   }
 
+  /// Records KPI monitoring data for a KPI and returns the server's success
+  /// message.
+  Future<String> recordKpiMonitoringData({
+    required String token,
+    required String kpiId,
+    required num achievedValue,
+    required String reportingDate,
+  }) {
+    return _postJson(
+      token: token,
+      url: ApiConstants.kpiData(kpiId),
+      payload: {
+        'achieved_value': achievedValue,
+        'reporting_date': reportingDate,
+      },
+      successMessage: 'KPI monitoring data recorded successfully.',
+      failureMessage: 'Failed to record KPI monitoring data',
+    );
+  }
+
   Future<String> _postJson({
     required String token,
     required String url,

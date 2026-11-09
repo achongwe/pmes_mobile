@@ -19,7 +19,7 @@ class UpdateKpiArgs {
 }
 
 /// Lists every KPI of a project; "Add record" opens the KPI form, which
-/// sends a PUT to update that KPI.
+/// records KPI monitoring data for that KPI.
 class UpdateKpiScreen extends StatefulWidget {
   const UpdateKpiScreen({required this.args, super.key});
 
