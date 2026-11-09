@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../constants/api_constants.dart';
 import '../models/dashboard_overview.dart';
@@ -13,6 +15,7 @@ class DashboardService {
   const DashboardService();
 
   static const Duration _timeout = Duration(seconds: 15);
+  static const Duration _downloadTimeout = Duration(seconds: 60);
 
   Future<DashboardOverviewResponse> getOverview({required String token}) async {
     final Uri uri = Uri.parse(ApiConstants.dashboardOverview);
@@ -265,6 +268,58 @@ class DashboardService {
           '$failureMessage (HTTP ${response.statusCode}).',
       statusCode: response.statusCode,
     );
+  }
+
+  /// Downloads a project document into the temp directory and returns it.
+  Future<File> downloadProjectDocument({
+    required String token,
+    required String url,
+    required String documentId,
+    required String fileName,
+  }) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      throw const ApiException('This document has no valid download link.');
+    }
+
+    // Only send the access token to our own API host.
+    final headers = {
+      'Accept': '*/*',
+      if (uri.host == Uri.parse(ApiConstants.baseUrl).host)
+        'Authorization': 'Bearer $token',
+    };
+
+    late final http.Response response;
+    try {
+      response = await http
+          .get(uri, headers: headers)
+          .timeout(_downloadTimeout);
+    } on TimeoutException {
+      throw const ApiException('The download took too long. Please try again.');
+    } on SocketException {
+      throw const ApiException(
+        'Unable to reach the server. Check your connection.',
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        'Failed to download the document (HTTP ${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
+    }
+
+    try {
+      final directory = Directory(
+        p.join((await getTemporaryDirectory()).path, 'project_documents'),
+      );
+      await directory.create(recursive: true);
+      final safeName = fileName.replaceAll(RegExp(r'[^\w.\- ]'), '_');
+      final file = File(p.join(directory.path, '${documentId}_$safeName'));
+      return await file.writeAsBytes(response.bodyBytes, flush: true);
+    } on FileSystemException {
+      throw const ApiException('Unable to save the document on this device.');
+    }
   }
 
   Future<void> uploadProjectDocument({

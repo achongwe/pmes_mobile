@@ -93,7 +93,7 @@ void main() {
           {
             'id': '15',
             'name': 'Site plan',
-            'description': 'Layout drawing',
+            'description': '<p>Layout &amp; drawing</p>',
             'media_type': 'document',
             'file_name': 'site_plan.pdf',
             'mime_type': 'application/pdf',
@@ -173,7 +173,9 @@ void main() {
     expect(find.text('MWK 2.5T'), findsOneWidget);
 
     await reveal(find.text('Site plan'));
-    expect(find.text('Layout drawing'), findsOneWidget);
+    expect(find.text('Layout & drawing'), findsOneWidget);
+    expect(find.textContaining('<p>'), findsNothing);
+    expect(find.text('View / Download'), findsOneWidget);
     expect(find.text('document • site_plan.pdf • 2 KB'), findsOneWidget);
     expect(find.text('Published'), findsWidgets);
     expect(find.text('application/pdf'), findsNothing);

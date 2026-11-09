@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/services/api_exception.dart';
+import '../../core/services/dashboard_service.dart';
+import '../../core/services/session_provider.dart';
 import '../../core/utils/detail_records.dart';
 
 class _EmptyNote extends StatelessWidget {
@@ -601,7 +606,6 @@ class ProjectDocumentList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final documents = detailItems(value).whereType<Map>().toList();
     if (documents.isEmpty) return _EmptyNote(emptyMessage);
 
@@ -609,34 +613,98 @@ class ProjectDocumentList extends StatelessWidget {
       children: [
         for (var i = 0; i < documents.length; i++) ...[
           if (i > 0) const SizedBox(height: 8),
-          _buildCard(context, colorScheme, documents[i]),
+          _DocumentCard(document: documents[i]),
         ],
       ],
     );
   }
+}
 
-  Widget _buildCard(
-    BuildContext context,
-    ColorScheme colorScheme,
-    Map document,
-  ) {
-    final name = _text(document['name']) ?? _text(document['file_name']);
-    final fileName = _text(document['file_name']);
-    final description = _text(document['description']);
-    final mediaType = _text(document['media_type']);
-    final size = _formatFileSize(document['size']);
+class _DocumentCard extends StatefulWidget {
+  const _DocumentCard({required this.document});
+
+  final Map document;
+
+  @override
+  State<_DocumentCard> createState() => _DocumentCardState();
+}
+
+class _DocumentCardState extends State<_DocumentCard> {
+  static const _dashboardService = DashboardService();
+
+  bool _opening = false;
+
+  Map get _document => widget.document;
+
+  String? get _name => _text(_document['name']) ?? _fileName;
+  String? get _fileName => _text(_document['file_name']);
+  String? get _downloadUrl => _text(_document['download_url']);
+
+  Future<void> _openDocument() async {
+    final url = _downloadUrl;
+    final messenger = ScaffoldMessenger.of(context);
+    final token = context.read<SessionProvider>().token;
+    if (url == null || token == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('This document cannot be downloaded.')),
+      );
+      return;
+    }
+
+    setState(() => _opening = true);
+    String? error;
+    try {
+      final id = _text(_document['id']) ?? 'document';
+      final file = await _dashboardService.downloadProjectDocument(
+        token: token,
+        url: url,
+        documentId: id,
+        fileName: _fileName ?? _name ?? id,
+      );
+      final result = await OpenFilex.open(
+        file.path,
+        type: _text(_document['mime_type']),
+      );
+      if (result.type != ResultType.done) {
+        error = result.type == ResultType.noAppToOpen
+            ? 'No app found to open this file type.'
+            : 'Unable to open the document.';
+      }
+    } on ApiException catch (e) {
+      error = e.message;
+    } catch (_) {
+      error = 'Unable to open the document.';
+    }
+
+    if (!mounted) return;
+    setState(() => _opening = false);
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final name = _name;
+    final fileName = _fileName;
+    final mediaType = _text(_document['media_type']);
+    final size = _formatFileSize(_document['size']);
     final details = [
       ?mediaType,
       if (fileName != null && fileName != name) fileName,
       ?size,
     ].join(' • ');
     final workflowStatus = DetailRecord.from(
-      document,
+      _document,
       includeWorkflowStatus: true,
     ).workflowStatus;
 
     return _RecordCard(
-      record: DetailRecord(title: name ?? '—', subtitle: description),
+      record: DetailRecord(
+        title: name ?? '—',
+        subtitle: stripHtml(_document['description']),
+      ),
       leading: CircleAvatar(
         radius: 16,
         backgroundColor: colorScheme.secondaryContainer,
@@ -647,15 +715,33 @@ class ProjectDocumentList extends StatelessWidget {
         ),
       ),
       trailing: _workflowBadge(context, workflowStatus),
-      body: details.isEmpty
-          ? null
-          : Text(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (details.isNotEmpty)
+            Text(
               details,
               style: TextStyle(
                 fontSize: 12,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
+          if (_downloadUrl != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _opening ? null : _openDocument,
+              icon: _opening
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.download_outlined, size: 18),
+              label: Text(_opening ? 'Downloading…' : 'View / Download'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

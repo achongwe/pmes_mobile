@@ -422,3 +422,29 @@ String? _plain(Object? value) {
   final text = value.toString().replaceAll(RegExp(r'<[^>]*>'), '').trim();
   return text.isEmpty ? null : text;
 }
+
+/// Converts an HTML snippet (e.g. rich-text descriptions) into plain text.
+String? stripHtml(Object? value) {
+  if (value == null || value is Map || value is List) return null;
+  const entities = {
+    '&nbsp;': ' ',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&apos;': "'",
+    '&amp;': '&',
+  };
+  var text = value
+      .toString()
+      .replaceAll(
+        RegExp(r'<br\s*/?>|</p>|</div>|</li>', caseSensitive: false),
+        ' ',
+      )
+      .replaceAll(RegExp(r'<[^>]*>'), '');
+  entities.forEach((entity, replacement) {
+    text = text.replaceAll(entity, replacement);
+  });
+  text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return text.isEmpty ? null : text;
+}
