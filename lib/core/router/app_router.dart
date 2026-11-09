@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../models/dashboard_overview.dart';
 import '../../pages/home_page.dart';
 import '../../pages/create_kpi_screen.dart';
+import '../../pages/update_kpi_screen.dart';
 import '../../pages/project_document_upload_page.dart';
 import '../../pages/project_details_page.dart';
 import '../../pages/project_gps_update_page.dart';
@@ -22,6 +23,8 @@ const _projectMapPath = '/home/project-map';
 const _projectGpsUpdatePath = '/home/project-map/update-gps';
 const _projectDocumentUploadPath = '/home/project-document-upload';
 const _projectCreateKpiPath = '/home/project-create-kpi';
+const _projectUpdateKpiPath = '/home/project-update-kpi';
+const _projectEditKpiPath = '/home/project-edit-kpi';
 const _projectRecordExpenditurePath = '/home/project-record-expenditure';
 const _projectDetailsPath = '/home/project-details';
 const _notificationsPath = '/home/notifications';
@@ -127,6 +130,34 @@ class _AppRouterState extends State<AppRouter> {
                 body: Center(
                   child: Text('Unable to open KPI form for this project.'),
                 ),
+              );
+            }
+            return CreateKpiScreen(args: args);
+          },
+        ),
+        GoRoute(
+          path: _projectUpdateKpiPath,
+          name: 'project-update-kpi',
+          builder: (_, state) {
+            final args = state.extra;
+            if (args is! UpdateKpiArgs) {
+              return const Scaffold(
+                body: Center(
+                  child: Text('Unable to open KPIs for this project.'),
+                ),
+              );
+            }
+            return UpdateKpiScreen(args: args);
+          },
+        ),
+        GoRoute(
+          path: _projectEditKpiPath,
+          name: 'project-edit-kpi',
+          builder: (_, state) {
+            final args = state.extra;
+            if (args is! CreateKpiArgs || args.kpi == null) {
+              return const Scaffold(
+                body: Center(child: Text('Unable to open the KPI.')),
               );
             }
             return CreateKpiScreen(args: args);

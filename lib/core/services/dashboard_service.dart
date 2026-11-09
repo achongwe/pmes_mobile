@@ -133,6 +133,37 @@ class DashboardService {
     );
   }
 
+  /// Updates an existing KPI (PUT /kpis/{kpi}) and returns the server's
+  /// success message.
+  Future<String> updateKpi({
+    required String token,
+    required String kpiId,
+    String? objectiveId,
+    required String name,
+    required num baselineValue,
+    required num targetValue,
+    required String aggregationMethod,
+    required String reportingPeriod,
+    required String description,
+  }) {
+    return _postJson(
+      method: 'PUT',
+      token: token,
+      url: ApiConstants.kpi(kpiId),
+      payload: {
+        'objective_id': objectiveId == null ? null : int.tryParse(objectiveId),
+        'name': name,
+        'baseline_value': baselineValue,
+        'target_value': targetValue,
+        'aggregation_method': aggregationMethod,
+        'reporting_period': reportingPeriod,
+        'description': description,
+      },
+      successMessage: 'KPI updated successfully.',
+      failureMessage: 'Failed to update the KPI',
+    );
+  }
+
   /// Records a financial expenditure and returns the server's success message.
   Future<String> recordFinancialTransaction({
     required String token,
@@ -162,20 +193,20 @@ class DashboardService {
     required Map<String, dynamic> payload,
     required String successMessage,
     required String failureMessage,
+    String method = 'POST',
   }) async {
     late final http.Response response;
     try {
-      response = await http
-          .post(
-            Uri.parse(url),
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode(payload),
-          )
-          .timeout(_timeout);
+      final request = http.Request(method, Uri.parse(url))
+        ..headers.addAll({
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        })
+        ..body = jsonEncode(payload);
+      response = await http.Response.fromStream(
+        await request.send().timeout(_timeout),
+      );
     } on TimeoutException {
       throw const ApiException(
         'The server took too long to respond. Please try again.',

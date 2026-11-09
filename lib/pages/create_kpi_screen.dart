@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/models/project_kpi.dart';
 import '../core/services/api_exception.dart';
 import '../core/services/dashboard_service.dart';
 import '../core/services/session_provider.dart';
@@ -12,11 +13,15 @@ class CreateKpiArgs {
     required this.projectId,
     required this.projectTitle,
     required this.objectives,
+    this.kpi,
   });
 
   final String projectId;
   final String projectTitle;
   final List<ObjectiveOption> objectives;
+
+  /// When set, the screen edits this KPI (PUT) instead of creating one.
+  final ProjectKpi? kpi;
 }
 
 class ObjectiveOption {
@@ -68,10 +73,35 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
   void initState() {
     super.initState();
     final options = widget.args.objectives;
-    if (options.length == 1) {
+    final kpi = widget.args.kpi;
+    if (kpi != null) {
+      _selectedObjectiveId =
+          options.any((option) => option.id == kpi.objectiveId)
+          ? kpi.objectiveId
+          : null;
+      _nameController.text = kpi.name;
+      _baselineController.text = kpi.baselineValue;
+      _targetController.text = kpi.targetValue;
+      _descriptionController.text = kpi.description;
+      _aggregationMethod = _matchOption(
+        _aggregationMethods,
+        kpi.aggregationMethod,
+      );
+      _reportingPeriod = _matchOption(_reportingPeriods, kpi.reportingPeriod);
+    } else if (options.length == 1) {
       _selectedObjectiveId = options.first.id;
     }
   }
+
+  static String _matchOption(List<String> options, String value) {
+    final normalized = value.trim().toLowerCase();
+    return options.firstWhere(
+      (option) => option.toLowerCase() == normalized,
+      orElse: () => options.first,
+    );
+  }
+
+  bool get _isEditing => widget.args.kpi != null;
 
   @override
   void dispose() {
@@ -108,25 +138,64 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      final message = await _dashboardService.createProjectKpi(
-        token: token,
-        projectId: widget.args.projectId,
-        objectiveId: _selectedObjectiveId,
-        name: _nameController.text.trim(),
-        baselineValue: _parseNumber(_baselineController.text)!,
-        targetValue: _parseNumber(_targetController.text)!,
-        aggregationMethod: _aggregationMethod,
-        reportingPeriod: _reportingPeriod,
-        description: _descriptionController.text.trim(),
-      );
+      final name = _nameController.text.trim();
+      final baseline = _parseNumber(_baselineController.text)!;
+      final target = _parseNumber(_targetController.text)!;
+      final description = _descriptionController.text.trim();
+      final existing = widget.args.kpi;
+      final String message;
+      if (existing != null) {
+        message = await _dashboardService.updateKpi(
+          token: token,
+          kpiId: existing.id,
+          objectiveId: _selectedObjectiveId,
+          name: name,
+          baselineValue: baseline,
+          targetValue: target,
+          aggregationMethod: _aggregationMethod,
+          reportingPeriod: _reportingPeriod,
+          description: description,
+        );
+      } else {
+        message = await _dashboardService.createProjectKpi(
+          token: token,
+          projectId: widget.args.projectId,
+          objectiveId: _selectedObjectiveId,
+          name: name,
+          baselineValue: baseline,
+          targetValue: target,
+          aggregationMethod: _aggregationMethod,
+          reportingPeriod: _reportingPeriod,
+          description: description,
+        );
+      }
       if (!mounted) return;
       _showMessage(message);
-      context.pop(true);
+      if (existing != null) {
+        context.pop(
+          existing.copyWith(
+            name: name,
+            objectiveId: _selectedObjectiveId,
+            clearObjective: _selectedObjectiveId == null,
+            baselineValue: baseline.toString(),
+            targetValue: target.toString(),
+            aggregationMethod: _aggregationMethod,
+            reportingPeriod: _reportingPeriod,
+            description: description,
+          ),
+        );
+      } else {
+        context.pop(true);
+      }
     } on ApiException catch (error) {
       if (mounted) _showMessage(error.message);
     } catch (_) {
       if (mounted) {
-        _showMessage('Unable to create the KPI right now. Please try again.');
+        _showMessage(
+          _isEditing
+              ? 'Unable to update the KPI right now. Please try again.'
+              : 'Unable to create the KPI right now. Please try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -144,7 +213,7 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('New KPI')),
+      appBar: AppBar(title: Text(_isEditing ? 'Record KPI' : 'New KPI')),
       body: SafeArea(
         child: Form(
           key: _formKey,
@@ -334,7 +403,9 @@ class _CreateKpiScreenState extends State<CreateKpiScreen> {
                         )
                       : const Icon(Icons.check_circle_outline),
                   label: Text(
-                    _isSubmitting ? 'Creating…' : 'Create KPI',
+                    _isSubmitting
+                        ? (_isEditing ? 'Saving…' : 'Creating…')
+                        : (_isEditing ? 'Save KPI' : 'Create KPI'),
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,

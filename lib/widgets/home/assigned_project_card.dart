@@ -9,12 +9,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/dashboard_overview.dart';
 import '../../core/models/evidence_item.dart';
+import '../../core/models/project_kpi.dart';
 import '../../core/services/api_exception.dart';
 import '../../core/services/dashboard_service.dart';
 import '../../core/services/session_provider.dart';
 import '../../core/utils/detail_records.dart';
 import '../../pages/create_kpi_screen.dart';
 import '../../pages/project_gps_update_page.dart';
+import '../../pages/update_kpi_screen.dart';
 import '../../pages/record_financial_transaction_screen.dart';
 import 'project_map_banner.dart';
 
@@ -95,6 +97,13 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
     return options;
   }
 
+  List<ProjectKpi> _projectKpis() {
+    return [
+      for (final item in detailItems(widget.project.details.raw['kpis']))
+        if (item is Map) ?ProjectKpi.tryParse(item),
+    ];
+  }
+
   static String _stripHtml(String value, {int maxLength = 220}) {
     final plainText = value.replaceAll(RegExp(r'<[^>]*>'), '').trim();
     if (plainText.length <= maxLength) return plainText;
@@ -144,15 +153,16 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
 
     switch (action) {
       case _ProgressAction.updateKpiStatus:
-        final created = await context.pushNamed<bool>(
-          'project-create-kpi',
-          extra: CreateKpiArgs(
+        final updated = await context.pushNamed<bool>(
+          'project-update-kpi',
+          extra: UpdateKpiArgs(
             projectId: widget.project.id,
             projectTitle: widget.project.title,
             objectives: _objectiveOptions(),
+            kpis: _projectKpis(),
           ),
         );
-        if (created == true) await widget.onDataChanged?.call();
+        if (updated == true) await widget.onDataChanged?.call();
         break;
       case _ProgressAction.updateBudgetStatus:
         final recorded = await context.pushNamed<bool>(

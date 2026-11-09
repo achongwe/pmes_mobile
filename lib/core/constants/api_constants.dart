@@ -2,8 +2,7 @@
 class ApiConstants {
   ApiConstants._();
 
-  static const String baseUrl =
-      'https://pmes.optimumsystemsmw.com/api/v1';
+  static const String baseUrl = 'https://pmes.optimumsystemsmw.com/api/v1';
 
   static const String login = '$baseUrl/login';
 
@@ -27,6 +26,8 @@ class ApiConstants {
 
   static String projectKpis(String projectId) =>
       '$baseUrl/projects/$projectId/kpis';
+
+  static String kpi(String kpiId) => '$baseUrl/kpis/$kpiId';
 
   static String projectFinancialTransactions(String projectId) =>
       '$baseUrl/projects/$projectId/financial-transactions';
