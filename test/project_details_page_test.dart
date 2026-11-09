@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pmes_mobile/core/models/dashboard_overview.dart';
 import 'package:pmes_mobile/core/utils/detail_records.dart';
 import 'package:pmes_mobile/pages/project_details_page.dart';
+import 'package:pmes_mobile/widgets/project/project_detail_lists.dart';
 
 void main() {
   testWidgets('shows project details and summary returned by the API', (
@@ -88,7 +89,21 @@ void main() {
             'created_at': '1 day ago',
           },
         ]),
-        'documents': [],
+        'documents': [
+          {
+            'id': '15',
+            'name': 'Site plan',
+            'description': 'Layout drawing',
+            'media_type': 'document',
+            'file_name': 'site_plan.pdf',
+            'mime_type': 'application/pdf',
+            'size': 2048,
+            'workflow_status': 'Published',
+            'download_url': 'https://example.test/download/15',
+            'created_at': '2026-11-01 10:00:00',
+            'updated_at': '2026-11-02 10:00:00',
+          },
+        ],
         'milestones': [
           {'title': 'Foundation', 'progress': 80, 'status': 'In progress'},
         ],
@@ -157,6 +172,28 @@ void main() {
     expect(find.text('Credit'), findsOneWidget);
     expect(find.text('MWK 2.5T'), findsOneWidget);
 
-    await reveal(find.text('No documents uploaded.'));
+    await reveal(find.text('Site plan'));
+    expect(find.text('Layout drawing'), findsOneWidget);
+    expect(find.text('document • site_plan.pdf • 2 KB'), findsOneWidget);
+    expect(find.text('Published'), findsWidgets);
+    expect(find.text('application/pdf'), findsNothing);
+    expect(find.text('2026-11-01 10:00:00'), findsNothing);
+    expect(find.text('2026-11-02 10:00:00'), findsNothing);
+    expect(find.text('https://example.test/download/15'), findsNothing);
+  });
+
+  testWidgets('shows empty note when there are no documents', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProjectDocumentList(
+            value: const [],
+            emptyMessage: 'No documents uploaded.',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('No documents uploaded.'), findsOneWidget);
   });
 }

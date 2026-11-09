@@ -210,7 +210,7 @@ class ProjectDetailsPage extends StatelessWidget {
             title: 'Documents',
             icon: Icons.folder_open_outlined,
             children: [
-              GenericRecordList(
+              ProjectDocumentList(
                 value: raw['documents'],
                 emptyMessage: 'No documents uploaded.',
               ),

@@ -587,3 +587,91 @@ class GenericRecordList extends StatelessWidget {
     );
   }
 }
+
+/// Project documents returned by the API (media records).
+class ProjectDocumentList extends StatelessWidget {
+  const ProjectDocumentList({
+    required this.value,
+    required this.emptyMessage,
+    super.key,
+  });
+
+  final Object? value;
+  final String emptyMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final documents = detailItems(value).whereType<Map>().toList();
+    if (documents.isEmpty) return _EmptyNote(emptyMessage);
+
+    return Column(
+      children: [
+        for (var i = 0; i < documents.length; i++) ...[
+          if (i > 0) const SizedBox(height: 8),
+          _buildCard(context, colorScheme, documents[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context,
+    ColorScheme colorScheme,
+    Map document,
+  ) {
+    final name = _text(document['name']) ?? _text(document['file_name']);
+    final fileName = _text(document['file_name']);
+    final description = _text(document['description']);
+    final mediaType = _text(document['media_type']);
+    final size = _formatFileSize(document['size']);
+    final details = [
+      ?mediaType,
+      if (fileName != null && fileName != name) fileName,
+      ?size,
+    ].join(' • ');
+    final workflowStatus = DetailRecord.from(
+      document,
+      includeWorkflowStatus: true,
+    ).workflowStatus;
+
+    return _RecordCard(
+      record: DetailRecord(title: name ?? '—', subtitle: description),
+      leading: CircleAvatar(
+        radius: 16,
+        backgroundColor: colorScheme.secondaryContainer,
+        child: Icon(
+          Icons.description_outlined,
+          size: 18,
+          color: colorScheme.onSecondaryContainer,
+        ),
+      ),
+      trailing: _workflowBadge(context, workflowStatus),
+      body: details.isEmpty
+          ? null
+          : Text(
+              details,
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+    );
+  }
+
+  static String? _text(Object? value) {
+    if (value == null || value is Map || value is List) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static String? _formatFileSize(Object? value) {
+    final bytes = value is num ? value : num.tryParse(value?.toString() ?? '');
+    if (bytes == null) return null;
+    const kb = 1024;
+    const mb = kb * 1024;
+    if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(1)} MB';
+    if (bytes >= kb) return '${(bytes / kb).toStringAsFixed(0)} KB';
+    return '${bytes.toInt()} B';
+  }
+}
