@@ -114,13 +114,13 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
               onTap: () =>
                   Navigator.pop(context, _ProgressAction.updateKpiStatus),
             ),
-            ListTile(
-              leading: const Icon(Icons.account_balance_wallet_outlined),
-              title: const Text('Update Budget Status'),
-              subtitle: const Text('Record budget usage and changes'),
-              onTap: () =>
-                  Navigator.pop(context, _ProgressAction.updateBudgetStatus),
-            ),
+            // ListTile(
+            //   leading: const Icon(Icons.account_balance_wallet_outlined),
+            //   title: const Text('Update Budget Status'),
+            //   subtitle: const Text('Record budget usage and changes'),
+            //   onTap: () =>
+            //       Navigator.pop(context, _ProgressAction.updateBudgetStatus),
+            // ),
             ListTile(
               leading: const Icon(Icons.attach_file_outlined),
               title: const Text('Upload Progress Evidence'),

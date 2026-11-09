@@ -1,13 +1,19 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../core/models/dashboard_overview.dart';
 import '../core/services/api_exception.dart';
+import '../core/repositories/project_update_repository.dart';
 import '../core/services/dashboard_service.dart';
+import '../core/services/local_database.dart';
 import '../core/services/session_provider.dart';
 
 class ProjectDocumentUploadPage extends StatefulWidget {
@@ -23,6 +29,9 @@ class ProjectDocumentUploadPage extends StatefulWidget {
 class _ProjectDocumentUploadPageState extends State<ProjectDocumentUploadPage> {
   static const _dashboardService = DashboardService();
   static const _inputRadius = 12.0;
+  static const _maxFileBytes = 5120 * 1024;
+
+  final _repository = ProjectUpdateRepository();
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -80,26 +89,82 @@ class _ProjectDocumentUploadPageState extends State<ProjectDocumentUploadPage> {
     }
 
     setState(() => _isSubmitting = true);
+    final name = _nameController.text.trim();
+    final description = _descriptionController.text.trim();
+
+    late final String localId;
+    late final String storedPath;
     try {
+      final fileSize = await File(file.path).length();
+      if (fileSize > _maxFileBytes) {
+        _showMessage('The selected file must be 5 MB or smaller.');
+        if (mounted) setState(() => _isSubmitting = false);
+        return;
+      }
+      storedPath = await _copyToAppStorage(file);
+      final localRecord = await _repository.writeProjectUpdate(
+        projectId: project.id,
+        name: name,
+        description: description,
+        filePath: storedPath,
+        fileName: file.name,
+      );
+      localId = localRecord.localId;
+    } on LocalDatabaseException catch (error) {
+      if (mounted) {
+        _showMessage('Unable to store this update locally. (${error.message})');
+        setState(() => _isSubmitting = false);
+      }
+      return;
+    } on Object catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Unable to store this update locally right now. Please try again.',
+        );
+        setState(() => _isSubmitting = false);
+      }
+      return;
+    }
+
+    try {
+      await _repository.recordProjectUpdateSyncAttempt(localId);
       await _dashboardService.uploadProjectDocument(
         token: token,
         projectId: project.id,
-        file: file,
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
+        file: XFile(storedPath),
+        name: name,
+        description: description,
       );
+      await _repository.markProjectUpdateSynced(localId);
       if (mounted) context.pop(true);
-    } on ApiException catch (error) {
-      if (mounted) _showMessage(error.message);
-    } catch (_) {
+    } on Object catch (error) {
+      final message = error is ApiException
+          ? error.message
+          : 'Unable to upload the document right now. Please try again.';
+      try {
+        await _repository.recordProjectUpdateSyncFailure(localId, message);
+      } on Object catch (_) {}
       if (mounted) {
         _showMessage(
-          'Unable to upload the document right now. Please try again.',
+          '$message The update is saved locally and queued for sync.',
         );
+        context.pop(false);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  Future<String> _copyToAppStorage(XFile file) async {
+    final documents = await getApplicationDocumentsDirectory();
+    final directory = Directory(p.join(documents.path, 'project_updates'));
+    await directory.create(recursive: true);
+    final target = p.join(
+      directory.path,
+      '${DateTime.now().microsecondsSinceEpoch}_${p.basename(file.path)}',
+    );
+    await File(file.path).copy(target);
+    return target;
   }
 
   void _showMessage(String message) {

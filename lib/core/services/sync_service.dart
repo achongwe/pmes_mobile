@@ -4,12 +4,17 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../constants/api_constants.dart';
 import '../models/field_progress_log.dart';
 import '../models/local_financial_transaction.dart';
+import '../models/local_project_update.dart';
 import '../repositories/financial_transaction_repository.dart';
 import '../repositories/field_log_repository.dart';
+import '../repositories/project_update_repository.dart';
+import 'api_exception.dart';
+import 'dashboard_service.dart';
 
 class SyncUploadException implements Exception {
   const SyncUploadException(
@@ -30,17 +35,24 @@ class SyncService extends ChangeNotifier {
   SyncService({
     required this.repository,
     FinancialTransactionRepository? financialTransactionRepository,
+    ProjectUpdateRepository? projectUpdateRepository,
+    DashboardService dashboardService = const DashboardService(),
     http.Client? client,
   }) : financialTransactionRepository =
            financialTransactionRepository ?? FinancialTransactionRepository(),
+       projectUpdateRepository =
+           projectUpdateRepository ?? ProjectUpdateRepository(),
+       _dashboardService = dashboardService,
        _client = client ?? http.Client(),
-      _ownsClient = client == null;
+       _ownsClient = client == null;
 
   static const Duration _requestTimeout = Duration(seconds: 30);
   static const int _batchSize = 100;
 
   final FieldLogRepository repository;
   final FinancialTransactionRepository financialTransactionRepository;
+  final ProjectUpdateRepository projectUpdateRepository;
+  final DashboardService _dashboardService;
   final http.Client _client;
   final bool _ownsClient;
 
@@ -104,7 +116,12 @@ class SyncService extends ChangeNotifier {
       final pendingLogs = await repository.getPendingFieldLogs();
       final pendingTransactions = await financialTransactionRepository
           .getPendingFinancialTransactions();
-      _totalCount = pendingLogs.length + pendingTransactions.length;
+      final pendingUpdates = await projectUpdateRepository
+          .getPendingProjectUpdates();
+      _totalCount =
+          pendingLogs.length +
+          pendingTransactions.length +
+          pendingUpdates.length;
       notifyListeners();
 
       for (var start = 0; start < pendingLogs.length; start += _batchSize) {
@@ -113,8 +130,7 @@ class SyncService extends ChangeNotifier {
           break;
         }
         if (_token != token) {
-          _lastError =
-              'Your session changed. Sign in again before syncing remaining records.';
+          _lastError = 'Your session changed. Sign in again before syncing remaining records.';
           break;
         }
 
@@ -172,8 +188,7 @@ class SyncService extends ChangeNotifier {
             break;
           }
           if (_token != token) {
-            _lastError =
-                'Your session changed. Sign in again before syncing remaining records.';
+            _lastError = 'Your session changed. Sign in again before syncing remaining records.';
             break;
           }
 
@@ -216,6 +231,52 @@ class SyncService extends ChangeNotifier {
           notifyListeners();
           if (stopAfterRecord) break;
         }
+      }
+
+      for (final update in pendingUpdates) {
+        if (!_isOnline) {
+          _lastError = 'Connection lost. Remaining records are still queued.';
+          break;
+        }
+        if (_token != token) {
+          _lastError = 'Your session changed. Sign in again before syncing remaining records.';
+          break;
+        }
+
+        _currentLocalId = update.localId;
+        notifyListeners();
+
+        var stopAfterRecord = false;
+        try {
+          await projectUpdateRepository.recordProjectUpdateSyncAttempt(
+            update.localId,
+          );
+          await _uploadProjectUpdate(update, token);
+          await projectUpdateRepository.markProjectUpdateSynced(update.localId);
+          _completedCount++;
+        } on Object catch (error) {
+          final message = _errorMessage(error);
+          try {
+            await projectUpdateRepository.recordProjectUpdateSyncFailure(
+              update.localId,
+              message,
+            );
+            _failedCount++;
+            _lastError ??= message;
+          } on Object catch (storageError) {
+            _lastError =
+                'Unable to save the sync result for ${update.localId}: '
+                '${_errorMessage(storageError)}';
+            debugPrint(
+              'Unable to save sync result for '
+              '${update.localId}: $storageError',
+            );
+            stopAfterRecord = true;
+          }
+          if (_isTransientUploadError(error)) stopAfterRecord = true;
+        }
+        notifyListeners();
+        if (stopAfterRecord) break;
       }
     } on Object catch (error) {
       _lastError =
@@ -313,8 +374,7 @@ class SyncService extends ChangeNotifier {
       final matches = syncedItems
           .where(
             (item) =>
-                item is Map<String, dynamic> &&
-                item['local_id'] == log.localId,
+                item is Map<String, dynamic> && item['local_id'] == log.localId,
           )
           .toList(growable: false);
       if (matches.length != 1) {
@@ -394,6 +454,34 @@ class SyncService extends ChangeNotifier {
           response.statusCode == 429 ||
           response.statusCode >= 500,
     );
+  }
+
+  Future<void> _uploadProjectUpdate(
+    LocalProjectUpdate update,
+    String token,
+  ) async {
+    if (!await File(update.filePath).exists()) {
+      throw const SyncUploadException(
+        'The attached file is no longer available on this device.',
+      );
+    }
+    await _dashboardService.uploadProjectDocument(
+      token: token,
+      projectId: update.projectId,
+      file: XFile(update.filePath),
+      name: update.name,
+      description: update.description,
+    );
+  }
+
+  // Network failures surface as ApiException without a status code.
+  bool _isTransientUploadError(Object error) {
+    if (error is SyncUploadException) return error.isTransient;
+    if (error is ApiException) {
+      final status = error.statusCode;
+      return status == null || status == 408 || status == 429 || status >= 500;
+    }
+    return false;
   }
 
   String _responseMessage(http.Response response) {

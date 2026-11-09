@@ -8,6 +8,10 @@ import 'package:http/testing.dart';
 import 'package:pmes_mobile/core/constants/api_constants.dart';
 import 'package:pmes_mobile/core/repositories/financial_transaction_repository.dart';
 import 'package:pmes_mobile/core/repositories/field_log_repository.dart';
+import 'package:pmes_mobile/core/repositories/project_update_repository.dart';
+import 'package:pmes_mobile/core/services/api_exception.dart';
+import 'package:pmes_mobile/core/services/dashboard_service.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pmes_mobile/core/services/local_database.dart';
 import 'package:pmes_mobile/core/services/sync_service.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -31,6 +35,7 @@ void main() {
     final service = SyncService(
       repository: fixture.repository,
       financialTransactionRepository: fixture.financialRepository,
+      projectUpdateRepository: fixture.projectUpdateRepository,
       client: MockClient((request) async {
         sentRequest = request;
         return http.Response(
@@ -89,6 +94,7 @@ void main() {
     final service = SyncService(
       repository: fixture.repository,
       financialTransactionRepository: fixture.financialRepository,
+      projectUpdateRepository: fixture.projectUpdateRepository,
       client: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         final items = body['items'] as List<dynamic>;
@@ -139,6 +145,7 @@ void main() {
     final service = SyncService(
       repository: fixture.repository,
       financialTransactionRepository: fixture.financialRepository,
+      projectUpdateRepository: fixture.projectUpdateRepository,
       client: MockClient((request) async {
         sentRequest = request;
         return http.Response(
@@ -194,6 +201,7 @@ void main() {
       final service = SyncService(
         repository: fixture.repository,
         financialTransactionRepository: fixture.financialRepository,
+        projectUpdateRepository: fixture.projectUpdateRepository,
         client: MockClient(
           (_) async => http.Response('{"message":"Invalid project."}', 422),
         ),
@@ -229,6 +237,7 @@ void main() {
     final service = SyncService(
       repository: fixture.repository,
       financialTransactionRepository: fixture.financialRepository,
+      projectUpdateRepository: fixture.projectUpdateRepository,
       client: MockClient((request) async {
         sentRequest = request;
         return http.Response('{"message":"Saved"}', 201);
@@ -272,6 +281,7 @@ void main() {
       final service = SyncService(
         repository: fixture.repository,
         financialTransactionRepository: fixture.financialRepository,
+        projectUpdateRepository: fixture.projectUpdateRepository,
         client: MockClient(
           (_) async => http.Response('{"message":"Invalid objective."}', 422),
         ),
@@ -291,6 +301,95 @@ void main() {
       expect(service.failedCount, 1);
     },
   );
+
+  test('uploads pending project updates and marks them synced', () async {
+    final fixture = await _createFixture();
+    addTearDown(fixture.dispose);
+    final file = File('${fixture.directory.path}/report.pdf')
+      ..writeAsStringSync('report');
+    final update = await fixture.projectUpdateRepository.writeProjectUpdate(
+      projectId: 'project-1',
+      name: 'Site photos',
+      description: 'Foundation complete.',
+      filePath: file.path,
+      fileName: 'report.pdf',
+    );
+    final uploader = _FakeDashboardService();
+    final service = SyncService(
+      repository: fixture.repository,
+      financialTransactionRepository: fixture.financialRepository,
+      projectUpdateRepository: fixture.projectUpdateRepository,
+      dashboardService: uploader,
+    );
+    addTearDown(service.dispose);
+
+    final finished = _whenSyncFinishes(service);
+    service.updateDependencies(isOnline: true, token: 'test-token');
+    await finished;
+
+    expect(uploader.uploads, ['project-1:Site photos:${file.path}']);
+    expect(
+      await fixture.projectUpdateRepository.getPendingProjectUpdates(),
+      isEmpty,
+    );
+    final queue = await fixture.projectUpdateRepository
+        .getProjectUpdatesForQueue();
+    expect(queue.single.localId, update.localId);
+    expect(queue.single.isSynced, isTrue);
+    expect(service.completedCount, 1);
+  });
+
+  test('keeps failed project updates queued with the error', () async {
+    final fixture = await _createFixture();
+    addTearDown(fixture.dispose);
+    final file = File('${fixture.directory.path}/report.pdf')
+      ..writeAsStringSync('report');
+    await fixture.projectUpdateRepository.writeProjectUpdate(
+      projectId: 'project-1',
+      name: 'Site photos',
+      description: 'Foundation complete.',
+      filePath: file.path,
+      fileName: 'report.pdf',
+    );
+    final service = SyncService(
+      repository: fixture.repository,
+      financialTransactionRepository: fixture.financialRepository,
+      projectUpdateRepository: fixture.projectUpdateRepository,
+      dashboardService: _FakeDashboardService(
+        error: const ApiException('Invalid file.', statusCode: 422),
+      ),
+    );
+    addTearDown(service.dispose);
+
+    final finished = _whenSyncFinishes(service);
+    service.updateDependencies(isOnline: true, token: 'test-token');
+    await finished;
+
+    final pending = await fixture.projectUpdateRepository
+        .getPendingProjectUpdates();
+    expect(pending.single.lastSyncError, 'Invalid file.');
+    expect(pending.single.lastSyncAttemptAt, isNotNull);
+    expect(service.failedCount, 1);
+  });
+}
+
+class _FakeDashboardService extends DashboardService {
+  _FakeDashboardService({this.error});
+
+  final ApiException? error;
+  final uploads = <String>[];
+
+  @override
+  Future<void> uploadProjectDocument({
+    required String token,
+    required String projectId,
+    required XFile file,
+    required String name,
+    required String description,
+  }) async {
+    if (error != null) throw error!;
+    uploads.add('$projectId:$name:${file.path}');
+  }
 }
 
 Future<void> _whenSyncFinishes(SyncService service) {
@@ -320,6 +419,7 @@ Future<_SyncFixture> _createFixture() async {
     database: database,
     repository: FieldLogRepository(database: database),
     financialRepository: FinancialTransactionRepository(database: database),
+    projectUpdateRepository: ProjectUpdateRepository(database: database),
   );
 }
 
@@ -329,12 +429,14 @@ class _SyncFixture {
     required this.database,
     required this.repository,
     required this.financialRepository,
+    required this.projectUpdateRepository,
   });
 
   final Directory directory;
   final LocalDatabase database;
   final FieldLogRepository repository;
   final FinancialTransactionRepository financialRepository;
+  final ProjectUpdateRepository projectUpdateRepository;
 
   Future<void> dispose() async {
     await database.close();

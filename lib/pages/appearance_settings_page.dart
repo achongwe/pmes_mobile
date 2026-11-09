@@ -68,46 +68,7 @@ class AppearanceSettingsPage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
-                _SettingsSection(
-                  title: 'DISPLAY PREFERENCES',
-                  children: [
-                    _DisplayPreference(
-                      icon: Icons.brightness_6_outlined,
-                      title: 'Sync with system theme',
-                      description: 'Automatically follow your device theme.',
-                      value: settings.syncWithSystem,
-                      onChanged: (enabled) {
-                        final mode = enabled
-                            ? ThemeMode.system
-                            : MediaQuery.platformBrightnessOf(context) ==
-                                  Brightness.dark
-                            ? ThemeMode.dark
-                            : ThemeMode.light;
-                        _save(context, () => settings.setThemeMode(mode));
-                      },
-                    ),
-                    const _PreferenceDivider(),
-                    _DisplayPreference(
-                      icon: Icons.motion_photos_off_outlined,
-                      title: 'Reduced motion',
-                      description: 'Minimize interface animations.',
-                      value: settings.reduceMotion,
-                      onChanged: (value) =>
-                          _save(context, () => settings.setReduceMotion(value)),
-                    ),
-                    const _PreferenceDivider(),
-                    _DisplayPreference(
-                      icon: Icons.contrast_outlined,
-                      title: 'High contrast',
-                      description:
-                          'Increase contrast between text and surfaces.',
-                      value: settings.highContrast,
-                      onChanged: (value) =>
-                          _save(context, () => settings.setHighContrast(value)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
+                
               ],
             ),
           ),

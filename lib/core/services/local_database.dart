@@ -18,7 +18,7 @@ class LocalDatabase {
 
   static final LocalDatabase instance = LocalDatabase();
 
-  static const int _version = 3;
+  static const int _version = 4;
   static const String _databaseName = 'pmes_mobile.db';
 
   final DatabaseFactory? factory;
@@ -107,6 +107,7 @@ class LocalDatabase {
               'CREATE INDEX financial_transactions_project_idx '
               'ON financial_transactions (project_id)',
             );
+            await _createProjectUpdatesTable(db);
           },
           onUpgrade: (db, oldVersion, newVersion) async {
             if (oldVersion < 2) {
@@ -143,6 +144,9 @@ class LocalDatabase {
                 'ON financial_transactions (project_id)',
               );
             }
+            if (oldVersion < 4) {
+              await _createProjectUpdatesTable(db);
+            }
           },
         ),
       );
@@ -153,6 +157,33 @@ class LocalDatabase {
         cause: error,
       );
     }
+  }
+
+  static Future<void> _createProjectUpdatesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE project_updates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        local_id TEXT NOT NULL UNIQUE,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        "timestamp" TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0
+          CHECK (is_synced IN (0, 1)),
+        last_sync_attempt_at TEXT,
+        last_sync_error TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX project_updates_sync_timestamp_idx '
+      'ON project_updates (is_synced, "timestamp")',
+    );
+    await db.execute(
+      'CREATE INDEX project_updates_project_idx '
+      'ON project_updates (project_id)',
+    );
   }
 
   Future<void> close() async {

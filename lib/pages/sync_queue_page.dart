@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/repositories/financial_transaction_repository.dart';
 import '../core/repositories/field_log_repository.dart';
+import '../core/repositories/project_update_repository.dart';
 import '../core/services/connectivity_provider.dart';
 import '../core/services/sync_service.dart';
 import '../core/theme/app_colors.dart';
@@ -22,6 +23,9 @@ class _QueueRecord {
     this.remark,
     this.kpisMet,
     this.notes,
+    this.updateName,
+    this.updateDescription,
+    this.fileName,
     this.errorReason,
   });
 
@@ -36,9 +40,13 @@ class _QueueRecord {
   final String? remark;
   final String? kpisMet;
   final String? notes;
+  final String? updateName;
+  final String? updateDescription;
+  final String? fileName;
   final String? errorReason;
 
   bool get isFinancialTransaction => amount != null;
+  bool get isProjectUpdate => updateName != null;
 
   _QueueRecord copyWith({
     _QueueStatus? status,
@@ -58,6 +66,9 @@ class _QueueRecord {
       remark: remark,
       kpisMet: kpisMet,
       notes: notes,
+      updateName: updateName,
+      updateDescription: updateDescription,
+      fileName: fileName,
       errorReason: clearError ? null : errorReason ?? this.errorReason,
     );
   }
@@ -74,6 +85,8 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
   final FieldLogRepository _fieldLogRepository = FieldLogRepository();
   final FinancialTransactionRepository _financialTransactionRepository =
       FinancialTransactionRepository();
+  final ProjectUpdateRepository _projectUpdateRepository =
+      ProjectUpdateRepository();
   List<_QueueRecord> _records = const [];
   bool _isLoading = true;
   String? _loadError;
@@ -122,6 +135,8 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
       final pendingLogs = await _fieldLogRepository.getPendingFieldLogs();
       final financialTransactions = await _financialTransactionRepository
           .getFinancialTransactionsForQueue();
+      final projectUpdates = await _projectUpdateRepository
+          .getProjectUpdatesForQueue();
       final fieldRecords = pendingLogs
           .map(
             (log) => _QueueRecord(
@@ -161,9 +176,28 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
             ),
           )
           .toList(growable: false);
+      final updateRecords = projectUpdates
+          .map(
+            (update) => _QueueRecord(
+              type: 'Project update',
+              reference: update.localId,
+              project: update.projectTitle ?? 'Project ${update.projectId}',
+              status: update.isSynced
+                  ? _QueueStatus.synced
+                  : update.lastSyncError == null
+                  ? _QueueStatus.pending
+                  : _QueueStatus.failed,
+              lastAttempt: update.lastSyncAttemptAt ?? update.timestamp,
+              updateName: update.name,
+              updateDescription: update.description,
+              fileName: update.fileName,
+              errorReason: update.lastSyncError,
+            ),
+          )
+          .toList(growable: false);
       if (!mounted) return;
       setState(() {
-        _records = [...financialRecords, ...fieldRecords]
+        _records = [...financialRecords, ...updateRecords, ...fieldRecords]
           ..sort((a, b) => b.lastAttempt.compareTo(a.lastAttempt));
         _isLoading = false;
       });
@@ -283,6 +317,13 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                   value: _dateTimeLabel(record.transactionDate!),
                 ),
                 _DetailRow(label: 'Remark', value: record.remark ?? '—'),
+              ] else if (record.isProjectUpdate) ...[
+                _DetailRow(label: 'Name', value: record.updateName!),
+                _DetailRow(
+                  label: 'Description',
+                  value: record.updateDescription ?? '—',
+                ),
+                _DetailRow(label: 'File', value: record.fileName ?? '—'),
               ] else ...[
                 _DetailRow(label: 'KPIs met', value: record.kpisMet ?? '—'),
                 _DetailRow(label: 'Notes', value: record.notes ?? '—'),
