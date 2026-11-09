@@ -30,7 +30,6 @@ class ProjectDetailsPage extends StatelessWidget {
     final raw = details.raw;
     final summary = details.summary;
     final location = project.location;
-    final milestone = project.milestoneCompletion;
 
     return Scaffold(
       appBar: AppBar(
@@ -66,7 +65,6 @@ class ProjectDetailsPage extends StatelessWidget {
         children: [
           _HeroCard(
             title: _text(project.title),
-            contractRef: _text(project.contractRef),
             publication: _text(project.status.publication),
             progress: _text(project.status.progress),
             department: displayText(
@@ -96,36 +94,6 @@ class ProjectDetailsPage extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          _SectionCard(
-            title: 'Milestone Completion',
-            icon: Icons.timeline,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        minHeight: 10,
-                        value: (milestone / 100).clamp(0.0, 1.0).toDouble(),
-                        backgroundColor: colorScheme.surfaceContainerHighest,
-                        color: colorScheme.secondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _percent(milestone),
-                    style: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              MilestonesList(value: raw['milestones']),
-            ],
           ),
           const SizedBox(height: 12),
           _SectionCard(
@@ -209,6 +177,7 @@ class ProjectDetailsPage extends StatelessWidget {
                 value: raw['staffing_requirements'],
                 emptyMessage: 'No staffing requirements recorded.',
                 icon: Icons.badge_outlined,
+                recordBuilder: staffingRequirementRecord,
               ),
               const _SubHeading('Employees'),
               StaffList(
@@ -222,10 +191,7 @@ class ProjectDetailsPage extends StatelessWidget {
             title: 'KPIs',
             icon: Icons.verified_outlined,
             children: [
-              KpiChecklist(
-                value: raw['kpis'],
-                objectives: raw['objectives'],
-              ),
+              KpiChecklist(value: raw['kpis'], objectives: raw['objectives']),
             ],
           ),
           const SizedBox(height: 12),
@@ -259,14 +225,12 @@ class ProjectDetailsPage extends StatelessWidget {
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
     required this.title,
-    required this.contractRef,
     required this.publication,
     required this.progress,
     required this.department,
   });
 
   final String title;
-  final String contractRef;
   final String publication;
   final String progress;
   final String department;
@@ -284,16 +248,6 @@ class _HeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'CONTRACT REF: $contractRef',
-            style: TextStyle(
-              fontSize: 11,
-              letterSpacing: 0.5,
-              fontWeight: FontWeight.bold,
-              color: onPrimary.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: 8),
           Text(
             title,
             style: TextStyle(

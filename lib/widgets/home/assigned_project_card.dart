@@ -449,8 +449,6 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
                 ),
               ],
               const SizedBox(height: 16),
-              _buildMilestoneProgress(project.milestoneCompletion),
-              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -563,53 +561,6 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildMilestoneProgress(num milestoneCompletion) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final progress = (milestoneCompletion / 100).clamp(0, 1).toDouble();
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Completion Status',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              Text(
-                '${milestoneCompletion.round()}%',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.secondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: colorScheme.outlineVariant,
-              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.secondary),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pmes_mobile/core/utils/detail_records.dart';
+import 'package:pmes_mobile/widgets/project/project_detail_lists.dart';
 
 void main() {
   test('decodes JSON-encoded strings, lists and wrapped maps', () {
@@ -50,6 +51,41 @@ void main() {
     expect(formatAmount('1234567.5'), '1,234,567.50');
     expect(formatAmount('abc'), isNull);
   });
+
+  test('formats updated_at as a human readable date and time', () {
+    expect(formatDateTime('2026-11-08T19:56:32.000Z'), '2026-11-08 19:56:32');
+    expect(formatDateTime('2026-11-08 09:05:03'), '2026-11-08 09:05:03');
+    expect(formatDateTime('2 hours ago'), '2 hours ago');
+    final record = DetailRecord.from({
+      'name': 'KPI A',
+      'created_at': '2026-11-07T08:00:00.000Z',
+      'updated_at': '2026-11-08T19:56:32.000Z',
+    });
+    expect(record.extras, {'Updated at': '2026-11-08 19:56:32'});
+  });
+
+  test(
+    'staffing requirements show the name as title and description below',
+    () {
+      final record = staffingRequirementRecord({
+        'project_id': 'project-1',
+        'position_name': 'Site engineer',
+        'description': 'Supervises road works',
+        'quantity': 2,
+        'updated_at': '2026-11-08T19:56:32.000Z',
+      });
+      expect(record.title, 'Site engineer');
+      expect(record.subtitle, 'Supervises road works');
+      expect(record.amount, '2');
+      expect(record.extras, isEmpty);
+
+      final descriptionOnly = staffingRequirementRecord({
+        'description': 'Site engineer',
+      });
+      expect(descriptionOnly.title, 'Site engineer');
+      expect(descriptionOnly.subtitle, isNull);
+    },
+  );
 
   test('formats amounts with compact units up to trillions', () {
     expect(formatCompactAmount('1000'), '1K');

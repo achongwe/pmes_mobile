@@ -65,7 +65,7 @@ class _FieldCommandCardState extends State<FieldCommandCard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'FIELD COMMAND',
+                'FIELD OFFICER',
                 style: TextStyle(
                   fontSize: 12,
                   color: mutedForegroundColor,

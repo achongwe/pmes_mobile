@@ -292,7 +292,7 @@ class FinancialTransactionsList extends StatelessWidget {
       emptyMessage: 'No financial transactions recorded.',
       maxHeight: 360,
       recordBuilder: (item) => DetailRecord.from(
-        item,
+        item is Map ? (Map.of(item)..remove('user')) : item,
         includeWorkflowStatus: true,
         hiddenKeys: const {
           'project_id',
@@ -499,71 +499,22 @@ class KpiChecklist extends StatelessWidget {
   }
 }
 
-class MilestonesList extends StatelessWidget {
-  const MilestonesList({required this.value, super.key});
-
-  final Object? value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return _RecordList(
-      value: value,
-      emptyMessage: 'No milestones recorded.',
-      itemBuilder: (context, record) {
-        final percent = record.percent;
-        return _RecordCard(
-          record: record,
-          leading: _statusIcon(
-            context,
-            record.done ?? (percent == null ? null : percent >= 100),
-          ),
-          trailing: _statusBadge(context, record.status, record.done),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (percent != null)
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          minHeight: 6,
-                          value: (percent / 100).clamp(0.0, 1.0).toDouble(),
-                          backgroundColor: colorScheme.surfaceContainerHighest,
-                          color: colorScheme.secondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${percent.round()}%',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              if (record.date != null)
-                Padding(
-                  padding: EdgeInsets.only(top: percent == null ? 0 : 6),
-                  child: Text(
-                    'Due ${record.date}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
+/// Staffing requirement rows: the position name is the title and the
+/// description sits beneath it. `project_id` and `updated_at` are not shown.
+DetailRecord staffingRequirementRecord(Object? item) => DetailRecord.from(
+  item,
+  titleKeys: const [
+    'position_name',
+    'name',
+    'full_name',
+    'employee_name',
+    'position',
+    'role',
+    'title',
+  ],
+  subtitleKeys: const ['description'],
+  hiddenKeys: const {'project_id', 'updated_at'},
+);
 
 /// Staffing requirements and employees as compact person / role rows.
 class StaffList extends StatelessWidget {
@@ -571,12 +522,14 @@ class StaffList extends StatelessWidget {
     required this.value,
     required this.emptyMessage,
     this.icon = Icons.person_outline,
+    this.recordBuilder,
     super.key,
   });
 
   final Object? value;
   final String emptyMessage;
   final IconData icon;
+  final DetailRecord Function(Object?)? recordBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -584,6 +537,7 @@ class StaffList extends StatelessWidget {
     return _RecordList(
       value: value,
       emptyMessage: emptyMessage,
+      recordBuilder: recordBuilder,
       itemBuilder: (context, record) => _RecordCard(
         record: record,
         leading: CircleAvatar(

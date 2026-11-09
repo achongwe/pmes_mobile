@@ -191,6 +191,8 @@ class DetailRecord {
     Object? item, {
     Set<String> hiddenKeys = const {},
     bool includeWorkflowStatus = false,
+    List<String>? titleKeys,
+    List<String>? subtitleKeys,
   }) {
     if (item is! Map) {
       return DetailRecord(title: _scalar(item) ?? '—');
@@ -229,8 +231,8 @@ class DetailRecord {
       }
     }
 
-    final title = pick(_titleKeys);
-    final subtitle = pick(_subtitleKeys, exclude: title);
+    final title = pick(titleKeys ?? _titleKeys);
+    final subtitle = pick(subtitleKeys ?? _subtitleKeys, exclude: title);
     final projectObjective = pick(const ['project_objective'], exclude: title);
     final user = pick(const ['user'], exclude: title);
     var status = pick(_statusKeys);
@@ -253,7 +255,9 @@ class DetailRecord {
       final k = key.toString();
       if (used.contains(k)) return;
       final text = _scalar(value);
-      if (text != null) extras[humanize(k)] = text;
+      if (text != null) {
+        extras[humanize(k)] = k == 'updated_at' ? formatDateTime(text) : text;
+      }
     });
 
     final subtitleParts = <String>[
@@ -364,6 +368,16 @@ String formatLongDate(String value) {
   final date = DateTime.tryParse(value.trim());
   if (date == null) return value;
   return '${date.day} ${_monthNames[date.month - 1]} ${date.year}';
+}
+
+/// Formats a timestamp as `2026-11-08 19:56:32`; returns [value] unchanged when
+/// it isn't a parseable date (e.g. relative times like `2 hours ago`).
+String formatDateTime(String value) {
+  final date = DateTime.tryParse(value.trim());
+  if (date == null) return value;
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${date.year}-${two(date.month)}-${two(date.day)} '
+      '${two(date.hour)}:${two(date.minute)}:${two(date.second)}';
 }
 
 const _labelKeys = [

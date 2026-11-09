@@ -111,12 +111,13 @@ void main() {
 
     expect(find.text('Project Details'), findsOneWidget);
     expect(find.text('Road rehabilitation'), findsOneWidget);
-    expect(find.text('CONTRACT REF: CTR-1'), findsOneWidget);
+    expect(find.text('CONTRACT REF: CTR-1'), findsNothing);
     expect(find.text('Transport'), findsOneWidget);
     expect(find.text('Approved Budget'), findsOneWidget);
     expect(find.text('Achieved KPIs'), findsNothing);
     expect(find.text('Published KPIs'), findsNothing);
-    expect(find.text('60%'), findsOneWidget);
+    expect(find.text('Milestone Completion'), findsNothing);
+    expect(find.text('60%'), findsNothing);
 
     expect(groupThousands('MWK 1000'), 'MWK 1,000');
     expect(groupThousands('1234567.5'), '1,234,567.5');
@@ -125,14 +126,10 @@ void main() {
     Future<void> reveal(Finder finder) =>
         tester.scrollUntilVisible(finder, 300, scrollable: scrollable);
 
-    await reveal(find.text('Foundation'));
-    expect(find.text('80%'), findsWidgets);
-
     await reveal(find.text('Objectives'));
     await reveal(find.text('Improve road access'));
     expect(find.text('Achieved'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
-    expect(find.byIcon(Icons.radio_button_unchecked), findsWidgets);
 
     await reveal(find.text('Location & Timeline'));
     expect(find.text('Lusaka'), findsNWidgets(2));
@@ -151,7 +148,8 @@ void main() {
     expect(find.text('Draft'), findsOneWidget);
 
     await reveal(find.text('Cement purchase'));
-    expect(find.textContaining('John Banda'), findsOneWidget);
+    expect(find.textContaining('John Banda'), findsNothing);
+    expect(find.text('First delivery'), findsOneWidget);
     expect(find.text('MWK 1M'), findsOneWidget);
     expect(find.text('Debit'), findsOneWidget);
     expect(find.text('3 days ago'), findsNothing);
