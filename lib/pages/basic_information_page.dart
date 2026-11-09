@@ -284,14 +284,7 @@ class _ProfileSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  'Organization: $organization',
-                  style: TextStyle(
-                    color: foreground.withValues(alpha: 0.62),
-                    fontSize: 12,
-                  ),
-                ),
-                Text(
-                  'Department / team: $department',
+                  'Department: $organization',
                   style: TextStyle(
                     color: foreground.withValues(alpha: 0.62),
                     fontSize: 12,

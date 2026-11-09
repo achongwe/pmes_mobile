@@ -2,7 +2,10 @@
 class ApiConstants {
   ApiConstants._();
 
+  // remote server address
   static const String baseUrl = 'https://pmes.optimumsystemsmw.com/api/v1';
+
+  //   const String baseUrl = 'http://192.168.1.101:8000/api/v1';
 
   static const String login = '$baseUrl/login';
 
@@ -28,7 +31,7 @@ class ApiConstants {
       '$baseUrl/projects/$projectId/kpis';
 
   static String kpi(String kpiId) => '$baseUrl/kpis/$kpiId';
-  static String kpiData(String kpiId) => '$baseUrl/kpis/$kpiId/kpi-data';
+  static String kpiData(String kpiId) => '$baseUrl/kpis/$kpiId/kpi-data'; 
 
   static String projectFinancialTransactions(String projectId) =>
       '$baseUrl/projects/$projectId/financial-transactions';

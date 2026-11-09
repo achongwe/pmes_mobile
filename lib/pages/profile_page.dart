@@ -325,7 +325,7 @@ class _ProfilePageState extends State<ProfilePage> {
               _ProfileMenuTileData(
                 icon: Icons.shield_outlined,
                 title: 'Account Security',
-                description: 'Password, 2FA, login activity',
+                description: 'Password',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => AccountSecurityPage(
@@ -374,7 +374,7 @@ class _ProfilePageState extends State<ProfilePage> {
               _ProfileMenuTileData(
                 icon: Icons.palette_outlined,
                 title: 'Appearance',
-                description: 'Theme, language, display',
+                description: 'Theme',
                 onTap:
                     widget.onAppearance ??
                     () => _showUnavailableFeature(
@@ -589,10 +589,6 @@ class _OrganizationDetailsSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _ProfileDetailRow(
-            label: 'Role',
-            value: _profileValue(profile.roleNames.join(', ')),
-          ),
-          _ProfileDetailRow(
             label: 'Account status',
             value: _profileValue(profile.accountStatus),
           ),
@@ -607,10 +603,6 @@ class _OrganizationDetailsSheet extends StatelessWidget {
           _ProfileDetailRow(
             label: 'Department description',
             value: _profileValue(department?.description),
-          ),
-          _ProfileDetailRow(
-            label: 'Additional departments',
-            value: _profileValue(profile.additionalDepartments),
           ),
           if (head != null) ...[
             const SizedBox(height: 8),
