@@ -119,6 +119,10 @@ class _RecordFinancialTransactionScreenState
           .writeFinancialTransaction(
             projectId: widget.args.projectId,
             objectiveId: _selectedObjectiveId,
+            objectiveName: widget.args.objectives
+                .where((option) => option.id == _selectedObjectiveId)
+                .map((option) => option.label)
+                .firstOrNull,
             amount: parsedAmount,
             transactionDate: transactionDate,
             remark: remark,

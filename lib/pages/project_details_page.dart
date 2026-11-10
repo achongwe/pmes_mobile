@@ -30,6 +30,14 @@ class ProjectDetailsPage extends StatelessWidget {
     final raw = details.raw;
     final summary = details.summary;
     final location = project.location;
+    final totalBudget = _text(summary.totalBudget);
+    final formattedTotalBudget = totalBudget == '—'
+        ? totalBudget
+        : groupThousands(
+            RegExp(r'^MWK(?:\s|$)', caseSensitive: false).hasMatch(totalBudget)
+                ? totalBudget
+                : 'MWK $totalBudget',
+          );
 
     return Scaffold(
       appBar: AppBar(
@@ -159,11 +167,7 @@ class ProjectDetailsPage extends StatelessWidget {
                 label: 'Employee count',
                 value: _text(summary.employeeCount),
               ),
-              _InfoRow(label: 'Budgets', value: displayText(raw['budgets'])),
-              _InfoRow(
-                label: 'Total budget',
-                value: groupThousands(_text(summary.totalBudget)),
-              ),
+              _InfoRow(label: 'Total budget', value: formattedTotalBudget),
               _InfoRow(
                 label: 'Total expenses',
                 value: groupThousands(summary.totalExpenses.toString()),

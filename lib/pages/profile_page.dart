@@ -347,11 +347,11 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 16),
           _ProfileSectionCard(
-            title: 'ORGANIZATION',
+            title: 'DEPARTMENT',
             tiles: [
               _ProfileMenuTileData(
                 icon: Icons.business_outlined,
-                title: 'My Organization',
+                title: 'My Department',
                 description: organizationDescription.isEmpty
                     ? 'Role, department, team'
                     : organizationDescription,

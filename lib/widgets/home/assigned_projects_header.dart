@@ -14,7 +14,7 @@ class AssignedProjectsHeader extends StatelessWidget {
         Row(
           children: [
             Text(
-              'Assigned Field Projects',
+              'My Projects',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

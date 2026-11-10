@@ -53,7 +53,13 @@ void main() {
           {'role': 'Site engineer', 'quantity': 2},
         ],
         'employees': [
-          {'name': 'Jane Banda', 'role': 'Foreman'},
+          {
+            'full_name': 'Jane Banda',
+            'role': 'Foreman',
+            'employment_type': 'Permanent',
+            'phone_number': '+260 977 123456',
+            'start_date': '2024-03-15',
+          },
         ],
         'kpis': [
           {
@@ -108,7 +114,7 @@ void main() {
           {'title': 'Foundation', 'progress': 80, 'status': 'In progress'},
         ],
         'summary': {
-          'total_budget': 'MWK 1,000',
+          'total_budget': '1000',
           'total_expenses': 250,
           'budget_utilization_percentage': 25,
           'objectives_achievement_percentage': 50,
@@ -156,6 +162,13 @@ void main() {
     await reveal(find.text('Site engineer'));
     expect(find.text('×2'), findsOneWidget);
     expect(find.text('Jane Banda'), findsOneWidget);
+    expect(find.text('MWK 1,000'), findsOneWidget);
+    expect(find.text('Employment type'), findsOneWidget);
+    expect(find.text('Permanent'), findsOneWidget);
+    expect(find.text('Phone number'), findsOneWidget);
+    expect(find.text('+260 977 123456'), findsOneWidget);
+    expect(find.text('Start date'), findsWidgets);
+    expect(find.text('15 March 2024'), findsOneWidget);
 
     await reveal(find.text('Km paved'));
     expect(find.text('Improve road access'), findsWidgets);

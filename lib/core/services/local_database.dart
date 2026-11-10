@@ -18,7 +18,7 @@ class LocalDatabase {
 
   static final LocalDatabase instance = LocalDatabase();
 
-  static const int _version = 4;
+  static const int _version = 5;
   static const String _databaseName = 'pmes_mobile.db';
 
   final DatabaseFactory? factory;
@@ -89,6 +89,7 @@ class LocalDatabase {
                 local_id TEXT NOT NULL UNIQUE,
                 project_id TEXT NOT NULL,
                 objective_id TEXT,
+                objective_name TEXT,
                 amount REAL NOT NULL,
                 transaction_date TEXT NOT NULL,
                 remark TEXT NOT NULL,
@@ -146,6 +147,12 @@ class LocalDatabase {
             }
             if (oldVersion < 4) {
               await _createProjectUpdatesTable(db);
+            }
+            if (oldVersion < 5) {
+              await db.execute(
+                'ALTER TABLE financial_transactions '
+                'ADD COLUMN objective_name TEXT',
+              );
             }
           },
         ),

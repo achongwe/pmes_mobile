@@ -362,10 +362,9 @@ class _HomePageState extends State<HomePage> {
                   child: HomeStatCard(
                     icon: Icons.account_balance_wallet_outlined,
                     value: overview.summary.fiscalAllocation.formattedAmount,
-                    label: 'Budget',
+                    label: overview.summary.fiscalAllocation.currency,
                     subLabel:
-                        overview.summary.fiscalAllocation.fiscalYear ??
-                        overview.summary.fiscalAllocation.currency,
+                        'Budgets',
                     rightWidget:
                         overview.summary.fiscalAllocation.percentageChange ==
                             null

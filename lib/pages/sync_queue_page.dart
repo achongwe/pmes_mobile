@@ -18,6 +18,7 @@ class _QueueRecord {
     required this.status,
     required this.lastAttempt,
     this.objectiveId,
+    this.objectiveName,
     this.amount,
     this.transactionDate,
     this.remark,
@@ -35,6 +36,7 @@ class _QueueRecord {
   final _QueueStatus status;
   final DateTime lastAttempt;
   final String? objectiveId;
+  final String? objectiveName;
   final double? amount;
   final DateTime? transactionDate;
   final String? remark;
@@ -47,6 +49,7 @@ class _QueueRecord {
 
   bool get isFinancialTransaction => amount != null;
   bool get isProjectUpdate => updateName != null;
+  String get displayName => isProjectUpdate ? updateName! : project;
 
   _QueueRecord copyWith({
     _QueueStatus? status,
@@ -61,6 +64,7 @@ class _QueueRecord {
       status: status ?? this.status,
       lastAttempt: lastAttempt ?? this.lastAttempt,
       objectiveId: objectiveId,
+      objectiveName: objectiveName,
       amount: amount,
       transactionDate: transactionDate,
       remark: remark,
@@ -169,6 +173,7 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
               lastAttempt:
                   transaction.lastSyncAttemptAt ?? transaction.transactionDate,
               objectiveId: transaction.objectiveId,
+              objectiveName: transaction.objectiveName,
               amount: transaction.amount,
               transactionDate: transaction.transactionDate,
               remark: transaction.remark,
@@ -285,14 +290,13 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
               ),
               const SizedBox(height: 6),
               Text(
-                record.reference,
+                record.displayName,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 20),
-              _DetailRow(label: 'Project / district', value: record.project),
               _DetailRow(
                 label: 'Queue status',
                 value: _statusLabel(record.status),
@@ -308,7 +312,9 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                 ),
                 _DetailRow(
                   label: 'Objective',
-                  value: record.objectiveId?.isNotEmpty == true
+                  value: record.objectiveName?.isNotEmpty == true
+                      ? record.objectiveName!
+                      : record.objectiveId?.isNotEmpty == true
                       ? record.objectiveId!
                       : 'No objective',
                 ),
@@ -520,6 +526,12 @@ class _SyncQueuePageState extends State<SyncQueuePage> {
                                           localId: record.reference,
                                           objectiveId: objectiveController.text
                                               .trim(),
+                                          objectiveName:
+                                              objectiveController.text
+                                                      .trim() ==
+                                                  record.objectiveId
+                                              ? record.objectiveName
+                                              : null,
                                           amount: num.parse(
                                             amountController.text.trim(),
                                           ),
@@ -1000,15 +1012,6 @@ class _QueueRecordCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          record.reference,
-                          style: TextStyle(
-                            color: colorScheme.onSurfaceVariant,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -1018,33 +1021,6 @@ class _QueueRecordCard extends StatelessWidget {
                   Icon(
                     Icons.chevron_right_rounded,
                     color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 13),
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on_outlined,
-                    color: colorScheme.onSurfaceVariant,
-                    size: 17,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      record.project,
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    _timeSince(record.lastAttempt),
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 11,
-                    ),
                   ),
                 ],
               ),

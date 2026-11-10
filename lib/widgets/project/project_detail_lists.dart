@@ -542,7 +542,21 @@ class StaffList extends StatelessWidget {
     return _RecordList(
       value: value,
       emptyMessage: emptyMessage,
-      recordBuilder: recordBuilder,
+      recordBuilder:
+          recordBuilder ??
+          (item) => DetailRecord.from(
+            item,
+            titleKeys: const [
+              'full_name',
+              'employee_name',
+              'name',
+              'display_name',
+              'position_name',
+              'position',
+              'role',
+              'title',
+            ],
+          ),
       itemBuilder: (context, record) => _RecordCard(
         record: record,
         leading: CircleAvatar(
@@ -550,6 +564,7 @@ class StaffList extends StatelessWidget {
           backgroundColor: colorScheme.secondaryContainer,
           child: Icon(icon, size: 18, color: colorScheme.onSecondaryContainer),
         ),
+        body: recordBuilder == null ? _StaffCardDetails(record: record) : null,
         trailing: record.amount == null
             ? _statusBadge(context, record.status ?? record.type, record.done)
             : Text(
@@ -561,6 +576,83 @@ class StaffList extends StatelessWidget {
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _StaffCardDetails extends StatelessWidget {
+  const _StaffCardDetails({required this.record});
+
+  final DetailRecord record;
+
+  String? _valueFor(Set<String> keys) {
+    for (final entry in record.extras.entries) {
+      final key = entry.key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (keys.contains(key)) return entry.value;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final employmentType = _valueFor(const {
+      'employmenttype',
+      'employeetype',
+      'employment',
+    });
+    final phone = _valueFor(const {
+      'phone',
+      'phonenumber',
+      'mobile',
+      'mobilenumber',
+      'contactnumber',
+    });
+    final startDate = _valueFor(const {
+      'startdate',
+      'employmentstartdate',
+      'dateofjoining',
+    });
+    final details = <(String, String)>[
+      if (employmentType != null) ('Employment type', employmentType),
+      if (phone != null) ('Phone number', phone),
+      if (startDate != null) ('Start date', formatLongDate(startDate)),
+    ];
+
+    if (details.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (label, value) in details)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

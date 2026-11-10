@@ -66,6 +66,13 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
     return text;
   }
 
+  static String _approvedBudgetAmount(String value) {
+    final amount = value
+        .replaceFirst(RegExp(r'^\s*MWK\s*', caseSensitive: false), '')
+        .trim();
+    return amount.isEmpty ? '—' : groupThousands(amount);
+  }
+
   static String? _firstTextValue(
     Map<dynamic, dynamic> source,
     List<String> keys,
@@ -464,8 +471,10 @@ class _AssignedProjectCardState extends State<AssignedProjectCard> {
                   Expanded(
                     child: _buildSmallSpecCard(
                       icon: Icons.payments_outlined,
-                      title: project.stats.approvedBudget,
-                      subtitle: 'Approved',
+                      title: 'MWK',
+                      subtitle: _approvedBudgetAmount(
+                        project.stats.approvedBudget,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),

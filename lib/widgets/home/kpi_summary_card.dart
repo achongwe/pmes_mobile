@@ -76,7 +76,7 @@ class KpiSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'KPIs Verified • $nextReviewLabel',
+                  'KPIs Verified',
                   style: TextStyle(
                     fontSize: 12,
                     color: colorScheme.onSurfaceVariant,

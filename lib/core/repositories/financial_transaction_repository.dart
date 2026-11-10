@@ -15,6 +15,7 @@ class FinancialTransactionRepository {
   Future<LocalFinancialTransaction> writeFinancialTransaction({
     required String projectId,
     String? objectiveId,
+    String? objectiveName,
     required num amount,
     required DateTime transactionDate,
     required String remark,
@@ -35,6 +36,9 @@ class FinancialTransactionRepository {
       localId: _uuid.v4(),
       projectId: projectId,
       objectiveId: objectiveId?.trim().isEmpty == true ? null : objectiveId,
+      objectiveName: objectiveId?.trim().isEmpty == true
+          ? null
+          : objectiveName?.trim(),
       amount: amount.toDouble(),
       transactionDate: transactionDate.toUtc(),
       remark: normalizedRemark,
@@ -193,6 +197,7 @@ class FinancialTransactionRepository {
   Future<void> updateFinancialTransaction({
     required String localId,
     String? objectiveId,
+    String? objectiveName,
     required num amount,
     required DateTime transactionDate,
     required String remark,
@@ -214,6 +219,9 @@ class FinancialTransactionRepository {
           'objective_id': objectiveId?.trim().isEmpty == true
               ? null
               : objectiveId?.trim(),
+          'objective_name': objectiveId?.trim().isEmpty == true
+              ? null
+              : objectiveName?.trim(),
           'amount': amount.toDouble(),
           'transaction_date': transactionDate.toUtc().toIso8601String(),
           'remark': normalizedRemark,

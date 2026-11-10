@@ -4,6 +4,7 @@ class LocalFinancialTransaction {
     required this.localId,
     required this.projectId,
     this.objectiveId,
+    this.objectiveName,
     required this.amount,
     required this.transactionDate,
     required this.remark,
@@ -18,6 +19,7 @@ class LocalFinancialTransaction {
   final String localId;
   final String projectId;
   final String? objectiveId;
+  final String? objectiveName;
   final double amount;
   final DateTime transactionDate;
   final String remark;
@@ -33,6 +35,7 @@ class LocalFinancialTransaction {
       localId: map['local_id']! as String,
       projectId: map['project_id']! as String,
       objectiveId: map['objective_id'] as String?,
+      objectiveName: map['objective_name'] as String?,
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       transactionDate: DateTime.parse(map['transaction_date']! as String)
           .toUtc(),
@@ -52,6 +55,7 @@ class LocalFinancialTransaction {
     'local_id': localId,
     'project_id': projectId,
     'objective_id': objectiveId,
+    'objective_name': objectiveName,
     'amount': amount,
     'transaction_date': transactionDate.toUtc().toIso8601String(),
     'remark': remark,
@@ -67,6 +71,7 @@ class LocalFinancialTransaction {
       localId: localId,
       projectId: projectId,
       objectiveId: objectiveId,
+      objectiveName: objectiveName,
       amount: amount,
       transactionDate: transactionDate,
       remark: remark,
